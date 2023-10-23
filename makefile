@@ -6,11 +6,13 @@ CFLAGS = $(INCLUDES) -std=c++2a -g -O2 -c
 
 VULKAN_SDK_LIB_PATH = /Users/flitneyr/VulkanSDK/1.3.261.1/macOS/lib
 
-# MAIN_DEPENDENCIES = 
+MAIN_DEPENDENCIES = build/engine.o
 
-# COMPILED_SHADERS = 
+COMPILED_SHADERS = build/test.vert.spv build/test.frag.spv
 
 # bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
+main: bin/main $(COMPILED_SHADERS)
+
 bin/main: build/main.o $(MAIN_DEPENDENCIES)
 	clang++ $(LFLAGS) -o $@ $^
 
@@ -26,7 +28,7 @@ memtest: bin/main
 bench: bin/main
 	time bin/main
 
-bin/%.spv: src/shaders/%
+build/%.spv: src/shaders/%
 	glslc -o $@ $<
 
 shaders: $(COMPILED_SHADERS)
