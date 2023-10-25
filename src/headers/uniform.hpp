@@ -88,7 +88,7 @@ template<typename UniformData>
 void Uniform<UniformData>::createDescriptorSetLayout() {
     if (s_descriptorSetLayout != VK_NULL_HANDLE) return;
 
-    auto layoutBindings = Uniform::BufferData::getBindings();
+    auto layoutBindings = UniformData::getBindings();
     auto layoutCreateInfo = vk::DescriptorSetLayoutCreateInfo {}.setBindings(layoutBindings);
     s_descriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(layoutCreateInfo);
 }

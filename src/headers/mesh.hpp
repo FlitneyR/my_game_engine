@@ -17,12 +17,10 @@ public:
         Engine& engine,
         std::vector<Vertex> vertices,
         std::vector<uint16_t> indices
-    ) :
-        r_engine(engine)
-    {
-        m_vertices = vertices;
-        m_indices = indices;
-    }
+    ) : r_engine(engine),
+        m_vertices(vertices),
+        m_indices(indices)
+    {}
     
     void setup();
 

@@ -2,11 +2,12 @@
 #define INSTANCE_HPP
 
 #include <libraries.hpp>
+#include <engine.hpp>
+#include <stb_image.h>
 
 namespace mge {
 
 struct SimpleMeshInstance {
-
     static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes(uint32_t firstAvailableLocation) {
         return {};
     }
@@ -17,7 +18,12 @@ struct SimpleMeshInstance {
 };
 
 struct SimpleMaterialInstance {
-    
+    SimpleMaterialInstance(Engine& engine) {}
+
+    static vk::DescriptorSetLayout s_descriptorSetLayout;
+
+    void setup() {}
+    void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout) {}
 };
 
 struct ModelTransformMeshInstance {
@@ -64,6 +70,80 @@ struct ModelTransformMeshInstance {
                 .setStride(sizeof(ModelTransformMeshInstance))
                 ,
             };
+    }
+};
+
+struct Texture {
+    std::vector<uint8_t> m_data;
+    uint32_t m_width, m_height;
+
+    Texture() = default;
+
+    Texture(const char* filename) {
+        int channels, width, height;
+        uint8_t* data = stbi_load(filename, &width, &height, &channels, 4);
+        
+        if (!data) throw std::runtime_error("Failed to load image: " + std::string(filename));
+
+        m_width = width;
+        m_height = height;
+
+        m_data.resize(m_width * m_height * 4);
+        memcpy(m_data.data(), data, m_data.size());
+
+        stbi_image_free(data);
+    }
+};
+
+class SingleTextureMaterialInstance {
+public:
+    Engine* r_engine;
+
+    SingleTextureMaterialInstance(Engine& engine) :
+        r_engine(&engine)
+    {}
+
+    vk::Image m_image;
+    vk::ImageView m_imageView;
+    vk::Sampler m_sampler;
+    vk::DeviceMemory m_bufferMemory;
+    vk::DescriptorPool m_descriptorPool;
+    vk::DescriptorSet m_descriptorSet;
+
+    static vk::DescriptorSetLayout s_descriptorSetLayout;
+
+    void setup(const Texture& texture) {
+        setupImage(texture);
+        allocateMemory();
+        setupImageView();
+        setupSampler();
+        fillImage(texture);
+        createDescriptorSetLayout();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        transitionImageLayout();
+    }
+
+    void setupImage(const Texture& texture);
+    void allocateMemory();
+    void setupImageView();
+    void setupSampler();
+    void fillImage(const Texture& texture);
+    void createDescriptorSetLayout();
+    void setupDescriptorPool();
+    void setupDescriptorSet();
+    void transitionImageLayout();
+
+    void cleanup() {
+        r_engine->m_device.destroyImageView(m_imageView);
+        r_engine->m_device.destroyImage(m_image);
+        r_engine->m_device.destroySampler(m_sampler);
+        r_engine->m_device.freeMemory(m_bufferMemory);
+        r_engine->m_device.destroyDescriptorPool(m_descriptorPool);
+    }
+
+    void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout) {
+        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, m_descriptorSet, nullptr);
     }
 };
 

@@ -18,9 +18,10 @@ class Material {
     std::vector<vk::DescriptorSetLayout> m_descriptorSetLayouts;
     vk::PipelineLayout m_pipelineLayout;
     vk::Pipeline m_pipeline;
-    std::vector<MaterialInstance> m_instances;
 
 public:
+    typedef MaterialInstance Instance;
+
     Material(Engine& engine, vk::ShaderModule vertexShader, vk::ShaderModule fragmentShader) :
         r_engine(engine),
         m_vertexShader(vertexShader),
@@ -31,12 +32,13 @@ public:
 
     void bindUniform(vk::CommandBuffer cmd, UniformType& uniform);
     void bindPipeline(vk::CommandBuffer cmd);
+    void bindInstance(vk::CommandBuffer cmd, MaterialInstance instance);
 
     void cleanup();
 
     MaterialInstance makeInstance() {
-        m_instances.push_back(MaterialInstance {});
-        return m_instances.back();
+        MaterialInstance result { r_engine };
+        return result;
     }
 
 private:
@@ -62,7 +64,11 @@ void MATERIAL::setup() {
 
 MATERIAL_TEMPLATE
 void MATERIAL::createDescriptorSetLayouts() {
-    m_descriptorSetLayouts.push_back(UniformType::s_descriptorSetLayout);
+    if (UniformType::s_descriptorSetLayout != VK_NULL_HANDLE)
+        m_descriptorSetLayouts.push_back(UniformType::s_descriptorSetLayout);
+
+    if (MaterialInstance::s_descriptorSetLayout != VK_NULL_HANDLE)
+        m_descriptorSetLayouts.push_back(MaterialInstance::s_descriptorSetLayout);
 }
 
 MATERIAL_TEMPLATE
@@ -230,6 +236,11 @@ void MATERIAL::bindUniform(vk::CommandBuffer cmd, UniformType& uniform) {
 MATERIAL_TEMPLATE
 void MATERIAL::bindPipeline(vk::CommandBuffer cmd) {
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+}
+
+MATERIAL_TEMPLATE
+void MATERIAL::bindInstance(vk::CommandBuffer cmd, MaterialInstance instance) {
+    instance.bind(cmd, m_pipelineLayout);
 }
 
 MATERIAL_TEMPLATE

@@ -59,10 +59,10 @@ void Engine::main() {
     while (!glfwWindowShouldClose(m_window)) {
         auto frameStart = std::chrono::high_resolution_clock::now();
 
-        auto millisSinceStart = std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - m_startTime).count();
-        auto millisSinceLastFrame = std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - m_lastFrameTime).count();
-        float time = static_cast<float>(millisSinceStart) / 1000.f;
-        float deltaTime = static_cast<float>(millisSinceLastFrame) / 1000.f;
+        auto microsSinceStart = std::chrono::duration_cast<std::chrono::microseconds>(frameStart - m_startTime).count();
+        auto microsSinceLastFrame = std::chrono::duration_cast<std::chrono::microseconds>(frameStart - m_lastFrameTime).count();
+        double time = static_cast<double>(microsSinceStart) / 1'000'000.f;
+        double deltaTime = static_cast<double>(microsSinceLastFrame) / 1'000'000.f;
         
         glfwPollEvents();
         draw();
@@ -458,6 +458,14 @@ void Engine::createRenderPass() {
                            | vk::PipelineStageFlagBits::eEarlyFragmentTests)
             .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite
                             | vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            ,
+        vk::SubpassDependency {}
+            .setSrcSubpass(0)
+            .setDstSubpass(0)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eTopOfPipe)
+            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            ,
     };
 
     auto createInfo = vk::RenderPassCreateInfo {}

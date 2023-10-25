@@ -119,6 +119,7 @@ void MODEL::cleanup() {
 MODEL_TEMPLATE
 void MODEL::drawInstances(vk::CommandBuffer cmd) {
     m_material->bindPipeline(cmd);
+    m_material->bindInstance(cmd, m_materialInstance);
     m_mesh->bindBuffers(cmd);
     uint32_t offset = 0;
     cmd.bindVertexBuffers(1, m_instanceBuffer, offset);

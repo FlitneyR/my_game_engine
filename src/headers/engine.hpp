@@ -91,7 +91,7 @@ public:
 
     virtual void start() {}
     virtual void recordDrawCommands(vk::CommandBuffer cmd) {}
-    virtual void update(float time, float deltaTime) {}
+    virtual void update(double time, double deltaTime) {}
     virtual void end() {}
 };
 

@@ -6,7 +6,7 @@ CFLAGS = $(INCLUDES) -std=c++2a -g -O2 -c
 
 VULKAN_SDK_LIB_PATH = /Users/flitneyr/VulkanSDK/1.3.261.1/macOS/lib
 
-MAIN_DEPENDENCIES = build/engine.o
+MAIN_DEPENDENCIES = build/engine.o build/objloader.o build/instance.o
 
 COMPILED_SHADERS = build/test.vert.spv build/test.frag.spv
 
@@ -21,12 +21,6 @@ build/%.o: src/%.cpp src/headers/%.hpp
 
 build/%.o: src/%.cpp
 	clang++ $(CFLAGS) -o $@ $<
-
-memtest: bin/main
-	leaks -atExit -- bin/main
-
-bench: bin/main
-	time bin/main
 
 build/%.spv: src/shaders/%
 	glslc -o $@ $<

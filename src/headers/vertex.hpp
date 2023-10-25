@@ -42,6 +42,46 @@ public:
     }
 };
 
+class ModelVertex {
+public:
+    glm::vec3 m_position;
+    glm::vec3 m_normal;
+    glm::vec2 m_texcoord;
+
+    static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes() {
+        return std::vector<vk::VertexInputAttributeDescription> {
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(0)
+                .setOffset(offsetof(ModelVertex, m_position))
+                .setFormat(vk::Format::eR32G32B32Sfloat)
+                ,
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(1)
+                .setOffset(offsetof(ModelVertex, m_normal))
+                .setFormat(vk::Format::eR32G32B32Sfloat)
+                ,
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(2)
+                .setOffset(offsetof(ModelVertex, m_texcoord))
+                .setFormat(vk::Format::eR32G32Sfloat)
+                ,
+            };
+    }
+
+    static constexpr std::vector<vk::VertexInputBindingDescription> getBindings() {
+        return std::vector<vk::VertexInputBindingDescription> {
+            vk::VertexInputBindingDescription {}
+                .setBinding(0)
+                .setInputRate(vk::VertexInputRate::eVertex)
+                .setStride(sizeof(ModelVertex))
+                ,
+            };
+    }
+};
+
 }
 
 #endif
