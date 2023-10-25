@@ -33,6 +33,7 @@ public:
     void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout);
 
     void cleanup() {
+        r_engine->m_device.destroyDescriptorSetLayout(s_descriptorSetLayout);
         r_engine->m_device.destroyBuffer(m_buffer);
         r_engine->m_device.freeMemory(m_bufferMemory);
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);

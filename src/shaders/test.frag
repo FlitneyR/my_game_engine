@@ -8,17 +8,17 @@ layout(location = 2) in vec3 viewdir;
 
 layout(set = 1, binding = 0) uniform sampler2D tex;
 
-const vec3 lightDirection = normalize(vec3(1, -1, 1));
+const vec3 lightDirection = normalize(vec3(1, 1, -1));
 
 const vec3 specularLight = vec3(1);
 const vec3 diffuseLight = vec3(0.6);
-const vec3 ambientLight = vec3(0.05);
+const vec3 ambientLight = vec3(0.1);
 
 void main() {
     float diffuse = max(0.0, dot(v_normal, -lightDirection));
 
     vec3 halfway = -normalize(viewdir + lightDirection);
-    float specular = max(0.0, pow(dot(halfway, v_normal), 15));
+    float specular = max(0.0, pow(dot(halfway, v_normal), 25));
 
     vec3 light;
 

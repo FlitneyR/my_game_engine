@@ -10,9 +10,7 @@ namespace mge {
 class Engine {
 public:
     static const char* s_engineName;
-    static const char* s_gameName;
     static const uint32_t s_engineVersion;
-    static const uint32_t s_gameVersion;
 
     static const std::vector<std::string> s_requiredInstanceLayers;
     static const std::vector<std::string> s_requiredDeviceLayers;
@@ -56,6 +54,14 @@ public:
 
     vk::CommandPool m_commandPool;
     vk::CommandBuffer m_commandBuffer;
+
+    virtual std::string getGameName() { return "No Game"; }
+    virtual uint32_t getGameVersion() { return VK_MAKE_VERSION(0, 1, 0); }
+
+    static float randomRangeFloat(float low, float high) {
+        float factor = (float)std::rand() / (float)RAND_MAX;
+        return glm::lerp(low, high, factor);
+    }
 
     // === setup functions ===
     void checkInstanceLayers();

@@ -24,6 +24,7 @@ struct SimpleMaterialInstance {
 
     void setup() {}
     void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout) {}
+    void cleanup() {}
 };
 
 struct ModelTransformMeshInstance {
@@ -135,6 +136,11 @@ public:
     void transitionImageLayout();
 
     void cleanup() {
+        if (s_descriptorSetLayout != VK_NULL_HANDLE) {
+            r_engine->m_device.destroyDescriptorSetLayout(s_descriptorSetLayout);
+            s_descriptorSetLayout = VK_NULL_HANDLE;
+        }
+
         r_engine->m_device.destroyImageView(m_imageView);
         r_engine->m_device.destroyImage(m_image);
         r_engine->m_device.destroySampler(m_sampler);

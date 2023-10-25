@@ -54,6 +54,10 @@ struct Camera : public Uniform<CameraUniformData> {
 
         return result;
     }
+
+    glm::vec3 getRight() {
+        return glm::normalize(glm::cross(m_up, m_forward));
+    }
 };
 
 }

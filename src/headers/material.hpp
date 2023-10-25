@@ -64,6 +64,8 @@ void MATERIAL::setup() {
 
 MATERIAL_TEMPLATE
 void MATERIAL::createDescriptorSetLayouts() {
+    m_descriptorSetLayouts.clear();
+
     if (UniformType::s_descriptorSetLayout != VK_NULL_HANDLE)
         m_descriptorSetLayouts.push_back(UniformType::s_descriptorSetLayout);
 
@@ -87,6 +89,9 @@ MATERIAL_TEMPLATE
 vk::PipelineVertexInputStateCreateInfo MATERIAL::makeVertexInputState() {
     static std::vector<vk::VertexInputAttributeDescription> attribDescs {};
     static std::vector<vk::VertexInputBindingDescription> bindingDescs {};
+
+    attribDescs.clear();
+    bindingDescs.clear();
 
     auto vertexAttribs = Vertex::getAttributes();
 
@@ -245,9 +250,9 @@ void MATERIAL::bindInstance(vk::CommandBuffer cmd, MaterialInstance instance) {
 
 MATERIAL_TEMPLATE
 void MATERIAL::cleanup() {
-    for (auto& descSetLayout : m_descriptorSetLayouts)
-        r_engine.m_device.destroyDescriptorSetLayout(descSetLayout);
-    m_descriptorSetLayouts.clear();
+    // for (auto& descSetLayout : m_descriptorSetLayouts)
+    //     r_engine.m_device.destroyDescriptorSetLayout(descSetLayout);
+    // m_descriptorSetLayouts.clear();
 
     r_engine.m_device.destroyShaderModule(m_vertexShader);
     r_engine.m_device.destroyShaderModule(m_fragmentShader);

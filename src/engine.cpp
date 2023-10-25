@@ -3,14 +3,11 @@
 #include <set>
 #include <sstream>
 #include <fstream>
-#include <iostream>
 
 namespace mge {
 
 const char* Engine::s_engineName = "My Game Engine";
-const char* Engine::s_gameName = "My Game";
 const uint32_t Engine::s_engineVersion = VK_MAKE_VERSION(0, 1, 0);
-const uint32_t Engine::s_gameVersion = VK_MAKE_VERSION(0, 1, 0);
 
 const std::vector<std::string> Engine::s_requiredInstanceLayers {
     "VK_LAYER_KHRONOS_validation",
@@ -35,7 +32,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    m_window = glfwCreateWindow(initWidth, initHeight, s_gameName, nullptr, nullptr);
+    m_window = glfwCreateWindow(initWidth, initHeight, getGameName().c_str(), nullptr, nullptr);
 
     createInstance();
     getSurface();
@@ -65,8 +62,8 @@ void Engine::main() {
         double deltaTime = static_cast<double>(microsSinceLastFrame) / 1'000'000.f;
         
         glfwPollEvents();
-        draw();
         update(time, deltaTime);
+        draw();
 
         m_lastFrameTime = frameStart;
     }
@@ -132,9 +129,9 @@ void Engine::createInstance() {
 
     auto appInfo = vk::ApplicationInfo {}
         .setApiVersion(VK_API_VERSION_1_3)
-        .setApplicationVersion(s_gameVersion)
+        .setApplicationVersion(getGameVersion())
         .setEngineVersion(s_engineVersion)
-        .setPApplicationName(s_gameName)
+        .setPApplicationName(getGameName().c_str())
         .setPEngineName(s_engineName)
         ;
 
@@ -258,7 +255,7 @@ void Engine::createSwapchain() {
         .setImageSharingMode(vk::SharingMode::eExclusive)
         .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment)
         .setMinImageCount(std::min(surfaceCaps.minImageCount + 1, surfaceCaps.maxImageCount))
-        .setPresentMode(vk::PresentModeKHR::eFifo)
+        .setPresentMode(vk::PresentModeKHR::eMailbox)
         .setSurface(m_surface)
         .setPreTransform(surfaceCaps.currentTransform)
         ;
@@ -581,7 +578,7 @@ void Engine::draw() {
 
     std::vector<vk::ClearValue> clearValues {
         vk::ClearValue {}
-            .setColor({ 0.f, 0.f, 0.f, 0.f })
+            .setColor({ 0.f, 0.01f, 0.025f, 1.f })
             ,
         vk::ClearValue {}
             .setDepthStencil({ 1.0f, 0 })

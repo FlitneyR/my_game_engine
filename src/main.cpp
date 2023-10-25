@@ -1,8 +1,8 @@
-#include "testGame.cpp"
+#include "asteroids/game.cpp"
 
 int main(const int argc, const char** const argv)
 {
-    TestGame game;
+    Game game;
     
     game.init(1280, 720);
     game.main();

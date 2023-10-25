@@ -148,7 +148,7 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
             positions.push_back(glm::vec3(line.mu_floats[0], line.mu_floats[1], line.mu_floats[2]));
         }   break;
         case obj::FileLine::eTexcoord: {
-            texcoords.push_back(glm::vec2(line.mu_floats[0], line.mu_floats[1]));
+            texcoords.push_back(glm::vec2(line.mu_floats[0], 1.f - line.mu_floats[1]));
         }   break;
         case obj::FileLine::eNormal: {
             normals.push_back(glm::vec3(line.mu_floats[0], line.mu_floats[1], line.mu_floats[2]));

@@ -1,8 +1,6 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
-#include <iostream>
-
 #include <libraries.hpp>
 #include <mesh.hpp>
 #include <vertex.hpp>
@@ -29,6 +27,7 @@ public:
     std::unordered_map<uint32_t, MeshInstance> m_meshInstances;
     uint32_t nextInstanceID = 0;
 
+    vk::DeviceSize m_instanceBufferSize = 0;
     vk::Buffer m_instanceBuffer;
     vk::DeviceMemory m_instanceBufferMemory;
 
@@ -58,6 +57,10 @@ public:
         return m_meshInstances[instanceID];
     }
 
+    void destroyInstance(uint32_t instanceID) {
+        m_meshInstances.erase(instanceID);
+    }
+
     void drawInstances(vk::CommandBuffer cmd);
 };
 
@@ -69,10 +72,16 @@ void MODEL::setup() {
 
 MODEL_TEMPLATE
 void MODEL::setupInstanceBuffer() {
+    // grow buffer in the same way you grow a vector's bufer
+    size_t numberToAllocate = glm::pow(2.f, glm::max(0.f, glm::ceil(glm::log2<float>(m_meshInstances.size()))));
+    m_instanceBufferSize = numberToAllocate * sizeof(MeshInstance);
+    vk::DeviceSize minimumBufferSize = 1 * sizeof(MeshInstance);
+    m_instanceBufferSize = std::max(m_instanceBufferSize, minimumBufferSize);
+
     vk::BufferCreateInfo createInfo; createInfo
         .setQueueFamilyIndices(*r_engine.m_queueFamilies.graphicsFamily)
         .setSharingMode(vk::SharingMode::eExclusive)
-        .setSize(m_meshInstances.size() * sizeof(MeshInstance))
+        .setSize(m_instanceBufferSize)
         .setUsage(vk::BufferUsageFlagBits::eVertexBuffer)
         ;
 
@@ -97,15 +106,25 @@ void MODEL::allocateInstanceBuffer() {
 
 MODEL_TEMPLATE
 void MODEL::updateInstanceBuffer() {
-    uint32_t bufferSize = m_meshInstances.size() * sizeof(MeshInstance);
-    void* mappedMemory = r_engine.m_device.mapMemory(m_instanceBufferMemory, 0, bufferSize);
+    uint32_t requiredBufferSize = m_meshInstances.size() * sizeof(MeshInstance);
+
+    if (requiredBufferSize > m_instanceBufferSize) {
+        r_engine.m_device.waitIdle();
+        cleanup();
+        setup();
+        return;
+    }
+
+    if (requiredBufferSize == 0) return;
+
+    void* mappedMemory = r_engine.m_device.mapMemory(m_instanceBufferMemory, 0, requiredBufferSize);
 
     std::vector<MeshInstance> meshInstances;
     meshInstances.reserve(m_meshInstances.size());
     for (auto& [ID, inst] : m_meshInstances)
         meshInstances.push_back(inst);
     
-    memcpy(mappedMemory, meshInstances.data(), bufferSize);
+    memcpy(mappedMemory, meshInstances.data(), requiredBufferSize);
 
     r_engine.m_device.unmapMemory(m_instanceBufferMemory);
 }
