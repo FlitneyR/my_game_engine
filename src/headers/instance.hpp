@@ -96,40 +96,44 @@ struct Texture {
     }
 };
 
-class SingleTextureMaterialInstance {
+#define NTEXTURE_TEMPLATE template<size_t N>
+#define NTEXTURE_MATERIAL_INSTANCE NTextureMaterialInstance<N>
+
+NTEXTURE_TEMPLATE
+class NTextureMaterialInstance {
 public:
     Engine* r_engine;
 
-    SingleTextureMaterialInstance(Engine& engine) :
+    NTextureMaterialInstance(Engine& engine) :
         r_engine(&engine)
     {}
 
-    vk::Image m_image;
-    vk::ImageView m_imageView;
-    vk::Sampler m_sampler;
-    vk::DeviceMemory m_bufferMemory;
+    std::array<vk::Image, N> m_images;
+    std::array<vk::ImageView, N> m_imageViews;
+    std::array<vk::Sampler, N> m_samplers;
+    std::array<vk::DeviceMemory, N> m_bufferMemories;
     vk::DescriptorPool m_descriptorPool;
     vk::DescriptorSet m_descriptorSet;
 
     static vk::DescriptorSetLayout s_descriptorSetLayout;
 
-    void setup(const Texture& texture) {
-        setupImage(texture);
-        allocateMemory();
-        setupImageView();
-        setupSampler();
-        fillImage(texture);
+    void setup(const std::array<Texture, N>& textures) {
+        setupImages(textures);
+        allocateMemories();
+        setupImageViews();
+        setupSamplers();
+        fillImages(textures);
         createDescriptorSetLayout();
         setupDescriptorPool();
         setupDescriptorSet();
         transitionImageLayout();
     }
 
-    void setupImage(const Texture& texture);
-    void allocateMemory();
-    void setupImageView();
-    void setupSampler();
-    void fillImage(const Texture& texture);
+    void setupImages(const std::array<Texture, N>& textures);
+    void allocateMemories();
+    void setupImageViews();
+    void setupSamplers();
+    void fillImages(const std::array<Texture, N>& textures);
     void createDescriptorSetLayout();
     void setupDescriptorPool();
     void setupDescriptorSet();
@@ -141,10 +145,18 @@ public:
             s_descriptorSetLayout = VK_NULL_HANDLE;
         }
 
-        r_engine->m_device.destroyImageView(m_imageView);
-        r_engine->m_device.destroyImage(m_image);
-        r_engine->m_device.destroySampler(m_sampler);
-        r_engine->m_device.freeMemory(m_bufferMemory);
+        for (auto& imageView : m_imageViews)
+            r_engine->m_device.destroyImageView(imageView);
+        
+        for (auto& image : m_images)
+            r_engine->m_device.destroyImage(image);
+        
+        for (auto& sampler : m_samplers)
+            r_engine->m_device.destroySampler(sampler);
+        
+        for (auto& bufferMemory : m_bufferMemories)
+            r_engine->m_device.freeMemory(bufferMemory);
+        
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);
     }
 
@@ -152,6 +164,235 @@ public:
         cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, m_descriptorSet, nullptr);
     }
 };
+
+NTEXTURE_TEMPLATE
+vk::DescriptorSetLayout NTEXTURE_MATERIAL_INSTANCE::s_descriptorSetLayout = VK_NULL_HANDLE;
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::setupImages(const std::array<Texture, N>& textures) {
+    for (int i = 0; i < N; i++) {
+        auto& texture = textures[i];
+
+        auto createInfo = vk::ImageCreateInfo {}
+            .setArrayLayers(1)
+            .setFormat(vk::Format::eR8G8B8A8Srgb)
+            .setImageType(vk::ImageType::e2D)
+            .setInitialLayout(vk::ImageLayout::eUndefined)
+            .setMipLevels(1)
+            .setQueueFamilyIndices(*r_engine->m_queueFamilies.graphicsFamily)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setSharingMode(vk::SharingMode::eExclusive)
+            .setTiling(vk::ImageTiling::eOptimal)
+            .setUsage(vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled)
+            ;
+        
+        createInfo.extent
+            .setWidth(texture.m_width)
+            .setHeight(texture.m_height)
+            .setDepth(1)
+            ;
+
+        m_images[i] = r_engine->m_device.createImage(createInfo);
+    }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::setupImageViews() {
+    for (int i = 0; i < N; i++) {
+        auto createInfo = vk::ImageViewCreateInfo {}
+            .setFormat(vk::Format::eR8G8B8A8Srgb)
+            .setImage(m_images[i])
+            .setViewType(vk::ImageViewType::e2D)
+            ;
+        
+        createInfo.subresourceRange
+            .setAspectMask(vk::ImageAspectFlagBits::eColor)
+            .setBaseArrayLayer(0)
+            .setBaseMipLevel(0)
+            .setLayerCount(1)
+            .setLevelCount(1)
+            ;
+
+        m_imageViews[i] = r_engine->m_device.createImageView(createInfo);
+    }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::setupSamplers() {
+    for (int i = 0; i < N; i++) {
+        auto properties = r_engine->m_physicalDevice.getProperties();
+
+        auto createInfo = vk::SamplerCreateInfo {}
+            .setAddressModeU(vk::SamplerAddressMode::eRepeat)
+            .setAddressModeV(vk::SamplerAddressMode::eRepeat)
+            .setMagFilter(vk::Filter::eLinear)
+            .setMinFilter(vk::Filter::eLinear)
+            .setMipmapMode(vk::SamplerMipmapMode::eLinear)
+            .setMaxAnisotropy(properties.limits.maxSamplerAnisotropy)
+            ;
+
+        m_samplers[i] = r_engine->m_device.createSampler(createInfo);
+    }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
+    for (int i = 0; i < N; i++) {
+        auto memReqs = r_engine->m_device.getImageMemoryRequirements(m_images[i]);
+
+        vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal
+                                        | vk::MemoryPropertyFlagBits::eHostVisible
+                                        ;
+
+        auto allocInfo = vk::MemoryAllocateInfo {}
+            .setAllocationSize(memReqs.size)
+            .setMemoryTypeIndex(r_engine->findMemoryType(memReqs.memoryTypeBits, properties))
+            ;
+
+        m_bufferMemories[i] = r_engine->m_device.allocateMemory(allocInfo);
+        r_engine->m_device.bindImageMemory(m_images[i], m_bufferMemories[i], 0);
+    }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::fillImages(const std::array<Texture, N>& textures) {
+    for (int i = 0; i < N; i++) {
+        void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[i], 0, textures[i].m_data.size());
+        memcpy(mappedMemory, textures[i].m_data.data(), textures[i].m_data.size());
+
+        auto mappedMemoryRange = vk::MappedMemoryRange {}
+            .setMemory(m_bufferMemories[i])
+            .setOffset(0)
+            .setSize(textures[i].m_data.size())
+            ;
+
+        r_engine->m_device.flushMappedMemoryRanges(mappedMemoryRange);
+        r_engine->m_device.unmapMemory(m_bufferMemories[i]);
+    }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::createDescriptorSetLayout() {
+    if (s_descriptorSetLayout != VK_NULL_HANDLE) return;
+
+    std::array<vk::DescriptorSetLayoutBinding, N> bindings;
+
+    for (int i = 0; i < N; i++)
+        bindings[i] = vk::DescriptorSetLayoutBinding {}
+            .setBinding(i)
+            .setDescriptorCount(1)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+            .setStageFlags(vk::ShaderStageFlagBits::eAllGraphics)
+            ;
+
+    auto createInfo = vk::DescriptorSetLayoutCreateInfo {}.setBindings(bindings);
+    s_descriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(createInfo);
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::setupDescriptorPool() {
+    auto poolSize = vk::DescriptorPoolSize {}
+        .setDescriptorCount(N)
+        .setType(vk::DescriptorType::eCombinedImageSampler)
+        ;
+
+    auto createInfo = vk::DescriptorPoolCreateInfo {}
+        .setMaxSets(1)
+        .setPoolSizes(poolSize)
+        ;
+    
+    m_descriptorPool = r_engine->m_device.createDescriptorPool(createInfo);
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::setupDescriptorSet() {
+    auto allocInfo = vk::DescriptorSetAllocateInfo {}
+        .setDescriptorPool(m_descriptorPool)
+        .setDescriptorSetCount(1)
+        .setSetLayouts(s_descriptorSetLayout)
+        ;
+
+    m_descriptorSet = r_engine->m_device.allocateDescriptorSets(allocInfo)[0];
+
+    std::array<vk::DescriptorImageInfo, N> imageInfos;
+
+    for (int i = 0; i < N; i++)
+        imageInfos[i] = vk::DescriptorImageInfo {}
+            .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            .setImageView(m_imageViews[i])
+            .setSampler(m_samplers[i])
+            ;
+
+    auto descriptorSetWrite = vk::WriteDescriptorSet {}
+        .setDescriptorCount(1)
+        .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+        .setDstArrayElement(0)
+        .setDstBinding(0)
+        .setDstSet(m_descriptorSet)
+        .setImageInfo(imageInfos)
+        ;
+
+    r_engine->m_device.updateDescriptorSets(descriptorSetWrite, nullptr);
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::transitionImageLayout() {
+    auto cmdAllocInfo = vk::CommandBufferAllocateInfo {}
+        .setCommandBufferCount(1)
+        .setCommandPool(r_engine->m_commandPool)
+        .setLevel(vk::CommandBufferLevel::ePrimary)
+        ;
+
+    vk::CommandBuffer cmd = r_engine->m_device.allocateCommandBuffers(cmdAllocInfo)[0];
+
+    auto beginInfo = vk::CommandBufferBeginInfo {}
+        .setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit)
+        ;
+
+    cmd.begin(beginInfo);
+
+    for (int i = 0; i < N; i++) {
+        auto imageBarrier = vk::ImageMemoryBarrier {}
+            .setImage(m_images[i])
+            .setOldLayout(vk::ImageLayout::eUndefined)
+            .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+            .setDstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+            ;
+        
+        imageBarrier.subresourceRange
+            .setAspectMask(vk::ImageAspectFlagBits::eColor)
+            .setBaseArrayLayer(0)
+            .setBaseMipLevel(0)
+            .setLayerCount(1)
+            .setLevelCount(1)
+            ;
+
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe,
+            vk::PipelineStageFlagBits::eFragmentShader,
+            {}, {}, {},
+            imageBarrier
+            );
+    }
+    
+    cmd.end();
+    
+    auto queue = r_engine->m_device.getQueue(*r_engine->m_queueFamilies.graphicsFamily, 0);
+
+    auto submitInfo = vk::SubmitInfo {}
+        .setCommandBuffers(cmd)
+        ;
+
+    queue.submit(submitInfo);
+    r_engine->m_device.waitIdle();
+
+    r_engine->m_device.freeCommandBuffers(r_engine->m_commandPool, cmd);
+}
+
+#undef NTEXTURE_TEMPLATE
+#undef NTEXTURE_MATERIAL_INSTANCE
 
 }
 

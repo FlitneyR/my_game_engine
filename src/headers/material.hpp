@@ -31,6 +31,7 @@ public:
     void setup();
 
     void bindUniform(vk::CommandBuffer cmd, UniformType& uniform);
+    void bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index);
     void bindPipeline(vk::CommandBuffer cmd);
     void bindInstance(vk::CommandBuffer cmd, MaterialInstance instance);
 
@@ -235,7 +236,12 @@ void MATERIAL::createPipeline() {
 
 MATERIAL_TEMPLATE
 void MATERIAL::bindUniform(vk::CommandBuffer cmd, UniformType& uniform) {
-    uniform.bind(cmd, m_pipelineLayout);
+    bindUniform(cmd, uniform, r_engine.m_currentInFlightFrame);
+}
+
+MATERIAL_TEMPLATE
+void MATERIAL::bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index) {
+    uniform.bind(cmd, m_pipelineLayout, index);
 }
 
 MATERIAL_TEMPLATE

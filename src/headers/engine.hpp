@@ -2,6 +2,8 @@
 #define ENGINE_HPP
 
 #include <libraries.hpp>
+#include <gameobject.hpp>
+// #include <physics.hpp>
 
 #include <chrono>
 
@@ -16,6 +18,9 @@ public:
     static const std::vector<std::string> s_requiredDeviceLayers;
     static const std::vector<std::string> s_requiredInstanceExtensions;
     static const std::vector<std::string> s_requiredDeviceExtensions;
+
+    virtual constexpr int getMaxFramesInFlight() { return 2; }
+    int m_currentInFlightFrame = 0;
 
     std::chrono::high_resolution_clock::time_point m_startTime, m_lastFrameTime;
 
@@ -46,14 +51,13 @@ public:
     std::vector<vk::ImageView> m_swapchainImageViews;
     std::vector<vk::Framebuffer> m_framebuffers;
 
-    vk::Semaphore m_imageAvailableSemaphore;
-    vk::Semaphore m_renderFinishedSemaphore;
-    vk::Fence m_commandBufferReadyFence;
+    std::vector<vk::Semaphore> m_imageAvailableSemaphores;
+    std::vector<vk::Semaphore> m_renderFinishedSemaphores;
+    std::vector<vk::Fence> m_commandBufferReadyFences;
 
     vk::RenderPass m_renderPass;
-
     vk::CommandPool m_commandPool;
-    vk::CommandBuffer m_commandBuffer;
+    std::vector<vk::CommandBuffer> m_commandBuffers;
 
     virtual std::string getGameName() { return "No Game"; }
     virtual uint32_t getGameVersion() { return VK_MAKE_VERSION(0, 1, 0); }
@@ -61,6 +65,24 @@ public:
     static float randomRangeFloat(float low, float high) {
         float factor = (float)std::rand() / (float)RAND_MAX;
         return glm::lerp(low, high, factor);
+    }
+
+    static glm::vec3 randomUnitVector() {
+        return glm::normalize(glm::vec3(
+            randomRangeFloat(-1.f, 1.f),
+            randomRangeFloat(-1.f, 1.f),
+            randomRangeFloat(-1.f, 1.f)
+        ));
+    }
+
+    std::vector<std::unique_ptr<GameObject>> m_gameObjects;
+
+    template<typename T>
+    T* getGameObject() {
+        for (auto& gameObject : m_gameObjects)
+        if (T* t = dynamic_cast<T*>(&*gameObject)) return t;
+
+        return nullptr;
     }
 
     // === setup functions ===
@@ -97,7 +119,14 @@ public:
 
     virtual void start() {}
     virtual void recordDrawCommands(vk::CommandBuffer cmd) {}
-    virtual void update(double time, double deltaTime) {}
+
+    virtual void physicsUpdate(double deltaTime) {
+    }
+
+    virtual void update(double deltaTime) {
+        for (auto& go : m_gameObjects) go->update(deltaTime);
+    }
+
     virtual void end() {}
 };
 

@@ -28,11 +28,11 @@ public:
     uint32_t nextInstanceID = 0;
 
     vk::DeviceSize m_instanceBufferSize = 0;
-    vk::Buffer m_instanceBuffer;
-    vk::DeviceMemory m_instanceBufferMemory;
+    std::vector<vk::Buffer> m_instanceBuffers;
+    std::vector<vk::DeviceMemory> m_instanceBufferMemories;
 
-    void setupInstanceBuffer();
-    void allocateInstanceBuffer();
+    void setupInstanceBuffers();
+    void allocateInstanceBuffer(int index);
 
 public:
     Model(Engine& engine, Mesh& mesh, Material& material, MaterialInstance m_materialInstance) :
@@ -44,6 +44,7 @@ public:
 
     void setup();
     void updateInstanceBuffer();
+    void updateInstanceBuffer(int index);
     void cleanup();
 
     uint32_t makeInstance() {
@@ -62,16 +63,19 @@ public:
     }
 
     void drawInstances(vk::CommandBuffer cmd);
+    void drawInstances(vk::CommandBuffer cmd, int index);
 };
 
 MODEL_TEMPLATE
 void MODEL::setup() {
-    setupInstanceBuffer();
-    updateInstanceBuffer();
+    setupInstanceBuffers();
+
+    for (int i = 0; i < r_engine.getMaxFramesInFlight(); i++)
+        updateInstanceBuffer(i);
 }
 
 MODEL_TEMPLATE
-void MODEL::setupInstanceBuffer() {
+void MODEL::setupInstanceBuffers() {
     // grow buffer in the same way you grow a vector's bufer
     size_t numberToAllocate = glm::pow(2.f, glm::max(0.f, glm::ceil(glm::log2<float>(m_meshInstances.size()))));
     m_instanceBufferSize = numberToAllocate * sizeof(MeshInstance);
@@ -85,13 +89,20 @@ void MODEL::setupInstanceBuffer() {
         .setUsage(vk::BufferUsageFlagBits::eVertexBuffer)
         ;
 
-    m_instanceBuffer = r_engine.m_device.createBuffer(createInfo);
-    allocateInstanceBuffer();
+    m_instanceBuffers.resize(r_engine.getMaxFramesInFlight());
+
+    for (auto& instanceBuffer : m_instanceBuffers)
+        instanceBuffer = r_engine.m_device.createBuffer(createInfo);
+
+    m_instanceBufferMemories.resize(r_engine.getMaxFramesInFlight());
+
+    for (int i = 0; i < r_engine.getMaxFramesInFlight(); i++)
+        allocateInstanceBuffer(i);
 }
 
 MODEL_TEMPLATE
-void MODEL::allocateInstanceBuffer() {
-    auto reqs = r_engine.m_device.getBufferMemoryRequirements(m_instanceBuffer);
+void MODEL::allocateInstanceBuffer(int index) {
+    auto reqs = r_engine.m_device.getBufferMemoryRequirements(m_instanceBuffers[index]);
     auto properties = vk::MemoryPropertyFlagBits::eDeviceLocal | vk::MemoryPropertyFlagBits::eHostCoherent;
 
     vk::MemoryAllocateInfo allocInfo; allocInfo
@@ -99,13 +110,18 @@ void MODEL::allocateInstanceBuffer() {
         .setMemoryTypeIndex(r_engine.findMemoryType(reqs.memoryTypeBits, properties));
         ;
 
-    m_instanceBufferMemory = r_engine.m_device.allocateMemory(allocInfo);
+    m_instanceBufferMemories[index] = r_engine.m_device.allocateMemory(allocInfo);
 
-    r_engine.m_device.bindBufferMemory(m_instanceBuffer, m_instanceBufferMemory, 0);
+    r_engine.m_device.bindBufferMemory(m_instanceBuffers[index], m_instanceBufferMemories[index], 0);
 }
 
 MODEL_TEMPLATE
 void MODEL::updateInstanceBuffer() {
+    updateInstanceBuffer(r_engine.m_currentInFlightFrame);
+}
+
+MODEL_TEMPLATE
+void MODEL::updateInstanceBuffer(int index) {
     uint32_t requiredBufferSize = m_meshInstances.size() * sizeof(MeshInstance);
 
     if (requiredBufferSize > m_instanceBufferSize) {
@@ -117,7 +133,7 @@ void MODEL::updateInstanceBuffer() {
 
     if (requiredBufferSize == 0) return;
 
-    void* mappedMemory = r_engine.m_device.mapMemory(m_instanceBufferMemory, 0, requiredBufferSize);
+    void* mappedMemory = r_engine.m_device.mapMemory(m_instanceBufferMemories[index], 0, requiredBufferSize);
 
     std::vector<MeshInstance> meshInstances;
     meshInstances.reserve(m_meshInstances.size());
@@ -126,22 +142,30 @@ void MODEL::updateInstanceBuffer() {
     
     memcpy(mappedMemory, meshInstances.data(), requiredBufferSize);
 
-    r_engine.m_device.unmapMemory(m_instanceBufferMemory);
+    r_engine.m_device.unmapMemory(m_instanceBufferMemories[index]);
 }
 
 MODEL_TEMPLATE
 void MODEL::cleanup() {
-    r_engine.m_device.freeMemory(m_instanceBufferMemory);
-    r_engine.m_device.destroyBuffer(m_instanceBuffer);
+    for (auto& instanceBufferMemory : m_instanceBufferMemories)
+        r_engine.m_device.freeMemory(instanceBufferMemory);
+    
+    for (auto& instanceBuffer : m_instanceBuffers)
+        r_engine.m_device.destroyBuffer(instanceBuffer);
 }
 
 MODEL_TEMPLATE
 void MODEL::drawInstances(vk::CommandBuffer cmd) {
+    drawInstances(cmd, r_engine.m_currentInFlightFrame);
+}
+
+MODEL_TEMPLATE
+void MODEL::drawInstances(vk::CommandBuffer cmd, int index) {
     m_material->bindPipeline(cmd);
     m_material->bindInstance(cmd, m_materialInstance);
     m_mesh->bindBuffers(cmd);
     uint32_t offset = 0;
-    cmd.bindVertexBuffers(1, m_instanceBuffer, offset);
+    cmd.bindVertexBuffers(1, m_instanceBuffers[index], offset);
     m_mesh->drawInstances(cmd, m_meshInstances.size());
 }
 

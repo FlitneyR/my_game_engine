@@ -2,33 +2,73 @@
 #define ASTEROID_HPP
 
 #include <engine.hpp>
+#include <physics.hpp>
 
-constexpr float MAX_ASTEROID_DISTANCE = 500.f;
+constexpr float MAX_ASTEROID_DISTANCE = 1000.f;
+
+// class Asteroid : public mge::RigidBody {
+// public:
+//     Asteroid() {
+//         m_collider = std::make_unique<mge::SphereCollider>();
+//     }
+
+//     void start() override {
+//         mge::RigidBody::start();
+
+//         m_rotation = glm::angleAxis(
+//             mge::Engine::randomRangeFloat(-1.f, 1.f) * glm::pi<float>(),
+//             mge::Engine::randomUnitVector()
+//         );
+
+//         m_angularVelocity = mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(0.f, 0.25f) * glm::pi<float>();
+
+//         m_position = glm::vec3(
+//             mge::Engine::randomRangeFloat(-1.f, 1.f) * MAX_ASTEROID_DISTANCE,
+//             mge::Engine::randomRangeFloat(-1.f, 1.f) * MAX_ASTEROID_DISTANCE,
+//             0
+//         );
+
+//         m_linearVelocity = glm::vec3(
+//             mge::Engine::randomRangeFloat(-1.f, 1.f) * 5.f,
+//             mge::Engine::randomRangeFloat(-1.f, 1.f) * 5.f,
+//             0
+//         );
+
+//         float radius = glm::pow(mge::Engine::randomRangeFloat(1.f, 2.f), 4.f);
+//         m_scale = glm::vec3(radius);
+
+//         dynamic_cast<mge::SphereCollider*>(m_collider.get())->m_radius = radius;
+//     }
+
+//     void update(float deltaTime) override {
+//         mge::RigidBody::update(deltaTime);
+
+//         if (m_position.x >  MAX_ASTEROID_DISTANCE) m_position.x -= 2 * MAX_ASTEROID_DISTANCE;
+//         if (m_position.x < -MAX_ASTEROID_DISTANCE) m_position.x += 2 * MAX_ASTEROID_DISTANCE;
+//         if (m_position.y >  MAX_ASTEROID_DISTANCE) m_position.y -= 2 * MAX_ASTEROID_DISTANCE;
+//         if (m_position.y < -MAX_ASTEROID_DISTANCE) m_position.y += 2 * MAX_ASTEROID_DISTANCE;
+//         if (m_position.z >  MAX_ASTEROID_DISTANCE) m_position.z -= 2 * MAX_ASTEROID_DISTANCE;
+//         if (m_position.z < -MAX_ASTEROID_DISTANCE) m_position.z += 2 * MAX_ASTEROID_DISTANCE;
+//     }
+// };
 
 struct Asteroid {
     glm::vec3 m_position;
-    glm::mat4 m_rotation;
+    glm::quat m_rotation;
     float m_radius;
 
-    uint32_t m_meshInstanceId;
+    uint32_t m_modelInstanceId;
 
     glm::vec3 m_linearVelocity;
 
-    glm::vec3 m_rotationAxis;
-    float m_angularVelocity;
+    glm::vec3 m_angularVelocity;
 
     glm::mat4 getTransform() {
-        // return glm::mat4 {
-        //     glm::vec4(m_radius * m_rotation[0], 0.f),
-        //     glm::vec4(m_radius * m_rotation[1], 0.f),
-        //     glm::vec4(m_radius * m_rotation[2], 0.f),
-        //     glm::vec4(m_position, 1.f)
-        // };
         glm::mat4 mat(1.f);
 
         mat = glm::translate(mat, m_position);
         mat = glm::scale(mat, glm::vec3(m_radius));
-        mat = mat * m_rotation;
+        mat = mat * glm::toMat4(m_rotation);
 
         return mat;
     }
@@ -41,7 +81,6 @@ struct Asteroid {
         m_position = glm::vec3(
             MAX_ASTEROID_DISTANCE * mge::Engine::randomRangeFloat(-1.f, 1.f),
             MAX_ASTEROID_DISTANCE * mge::Engine::randomRangeFloat(-1.f, 1.f),
-            // mge::Engine::randomRangeFloat(-MAX_ASTEROID_DISTANCE, MAX_ASTEROID_DISTANCE)
             0
         );
 
@@ -54,21 +93,30 @@ struct Asteroid {
         glm::vec3 randomAxis {
             mge::Engine::randomRangeFloat(-1.f, 1.f),
             mge::Engine::randomRangeFloat(-1.f, 1.f),
-            // mge::Engine::randomRangeFloat(-1.f, 1.f)
-            0
+            mge::Engine::randomRangeFloat(-1.f, 1.f)
         };
 
-        m_rotationAxis = glm::normalize(randomAxis);
-        m_angularVelocity = mge::Engine::randomRangeFloat(-1.f, 1.f);
-        m_rotation = glm::mat4(1.f);
+        glm::vec3 rotationAxis = glm::normalize(randomAxis);
+        float rotationRate = mge::Engine::randomRangeFloat(-1.f, 1.f);
+        m_angularVelocity = rotationAxis * rotationRate;
 
-        m_radius = mge::Engine::randomRangeFloat(1.f, 5.f);
+        m_rotation = glm::angleAxis(
+            mge::Engine::randomRangeFloat(-glm::pi<float>(), glm::pi<float>()),
+            glm::normalize(glm::vec3(
+                mge::Engine::randomRangeFloat(-1.f, 1.f),
+                mge::Engine::randomRangeFloat(-1.f, 1.f),
+                mge::Engine::randomRangeFloat(-1.f, 1.f)
+            ))
+        );
+
+        m_radius = glm::pow(mge::Engine::randomRangeFloat(1.f, 2.f), 4.f);
     }
 
     void update(float deltaTime, glm::vec3 cameraPosition) {
         m_position += m_linearVelocity * deltaTime;
 
-        m_rotation = glm::rotate(m_rotation, deltaTime * m_angularVelocity, m_rotationAxis);
+        glm::quat identity { 0, 0, 0, 0 };
+        m_rotation = glm::angleAxis(glm::length(m_angularVelocity) * deltaTime, glm::normalize(m_angularVelocity)) * m_rotation;
 
         glm::vec3 relpos = m_position - cameraPosition;
 
@@ -83,10 +131,9 @@ struct Asteroid {
     }
 
     bool isColliding(const Asteroid& other) const {
-        float mindist = m_radius + other.m_radius;
-        if (glm::distance(m_position.x, other.m_position.x) > mindist) return false;
-        if (glm::distance(m_position.y, other.m_position.y) > mindist) return false;
-        return glm::distance(m_position, other.m_position) < mindist;
+        float minDist = m_radius + other.m_radius;
+        float sqDist = glm::length2(m_position - other.m_position);
+        return sqDist < minDist * minDist;
     }
 
     void resolveCollision(Asteroid& other) {
@@ -104,8 +151,8 @@ struct Asteroid {
         float vd1 = vf1 - vi1;
         float vd2 = vf2 - vi2;
 
-        m_linearVelocity += collisionNormal * vd1 * 0.75f;
-        other.m_linearVelocity += collisionNormal * vd2 * 0.75f;
+        m_linearVelocity += collisionNormal * vd1 * 0.9f;
+        other.m_linearVelocity += collisionNormal * vd2 * 0.9f;
 
         float overlap = 0.01f + m_radius + other.m_radius - glm::distance(m_position, other.m_position);
 

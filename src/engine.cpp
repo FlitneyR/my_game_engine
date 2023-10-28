@@ -62,7 +62,11 @@ void Engine::main() {
         double deltaTime = static_cast<double>(microsSinceLastFrame) / 1'000'000.f;
         
         glfwPollEvents();
-        update(time, deltaTime);
+
+        for (auto& go : m_gameObjects) if (!go->m_hasStarted) go->start();
+
+        physicsUpdate(deltaTime);
+        update(deltaTime);
         draw();
 
         m_lastFrameTime = frameStart;
@@ -329,12 +333,18 @@ void Engine::rebuildSwapchain() {
 }
 
 void Engine::createSynchronisers() {
-    vk::SemaphoreCreateInfo createInfo;
-    m_imageAvailableSemaphore = m_device.createSemaphore(createInfo);
-    m_renderFinishedSemaphore = m_device.createSemaphore(createInfo);
-
+    vk::SemaphoreCreateInfo semaphoreCreateInfo;
     auto fenceCreateInfo = vk::FenceCreateInfo {}.setFlags(vk::FenceCreateFlagBits::eSignaled);
-    m_commandBufferReadyFence = m_device.createFence(fenceCreateInfo);
+
+    m_imageAvailableSemaphores.resize(getMaxFramesInFlight());
+    m_renderFinishedSemaphores.resize(getMaxFramesInFlight());
+    m_commandBufferReadyFences.resize(getMaxFramesInFlight());
+
+    for (int i = 0; i < getMaxFramesInFlight(); i++) {
+        m_imageAvailableSemaphores[i] = m_device.createSemaphore(semaphoreCreateInfo);
+        m_renderFinishedSemaphores[i] = m_device.createSemaphore(semaphoreCreateInfo);
+        m_commandBufferReadyFences[i] = m_device.createFence(fenceCreateInfo);
+    }
 }
 
 void Engine::createDepthBuffer() {
@@ -521,12 +531,12 @@ void Engine::createCommandPool() {
 
 void Engine::createCommandBuffer() {
     auto allocInfo = vk::CommandBufferAllocateInfo {}
-        .setCommandBufferCount(1)
+        .setCommandBufferCount(getMaxFramesInFlight())
         .setCommandPool(m_commandPool)
         .setLevel(vk::CommandBufferLevel::ePrimary)
         ;
 
-    m_commandBuffer = m_device.allocateCommandBuffers(allocInfo)[0];
+    m_commandBuffers = m_device.allocateCommandBuffers(allocInfo);
 }
 
 uint32_t Engine::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
@@ -541,10 +551,11 @@ uint32_t Engine::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags pro
 }
 
 void Engine::draw() {
-    vk::resultCheck(m_device.waitForFences(m_commandBufferReadyFence, true, UINT64_MAX), "Failed to wait for command-buffer-ready fence");
-    m_device.resetFences(m_commandBufferReadyFence);
+    auto waitResult = m_device.waitForFences(m_commandBufferReadyFences[m_currentInFlightFrame], true, UINT64_MAX);
+    vk::resultCheck(waitResult, "Failed to wait for command-buffer-ready fence");
+    m_device.resetFences(m_commandBufferReadyFences[m_currentInFlightFrame]);
 
-    auto nextImageResult = m_device.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_imageAvailableSemaphore);
+    auto nextImageResult = m_device.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentInFlightFrame]);
 
     if (nextImageResult.result != vk::Result::eSuboptimalKHR)
         vk::resultCheck(nextImageResult.result, "Failed to acquire next image");
@@ -553,10 +564,12 @@ void Engine::draw() {
 
     auto now = std::chrono::high_resolution_clock::now();
 
-    m_commandBuffer.reset();
+    vk::CommandBuffer cmd = m_commandBuffers[m_currentInFlightFrame];
+
+    cmd.reset();
 
     vk::CommandBufferBeginInfo beginInfo;
-    m_commandBuffer.begin(beginInfo);
+    cmd.begin(beginInfo);
 
     auto viewport = vk::Viewport {}
         .setX(0.f)
@@ -567,14 +580,14 @@ void Engine::draw() {
         .setMaxDepth(1.f)
         ;
 
-    m_commandBuffer.setViewport(0, viewport);
+    cmd.setViewport(0, viewport);
 
     auto scissor = vk::Rect2D {}
         .setOffset({ 0, 0 })
         .setExtent(m_swapchainExtent)
         ;
     
-    m_commandBuffer.setScissor(0, scissor);
+    cmd.setScissor(0, scissor);
 
     std::vector<vk::ClearValue> clearValues {
         vk::ClearValue {}
@@ -591,12 +604,12 @@ void Engine::draw() {
         .setRenderPass(m_renderPass)
         ;
 
-    m_commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+    cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-    recordDrawCommands(m_commandBuffer);
+    recordDrawCommands(cmd);
 
-    m_commandBuffer.endRenderPass();
-    m_commandBuffer.end();
+    cmd.endRenderPass();
+    cmd.end();
 
     vk::Queue graphicsQueue = m_device.getQueue(*m_queueFamilies.graphicsFamily, 0);
     
@@ -604,19 +617,19 @@ void Engine::draw() {
 
     std::vector<vk::SubmitInfo> submits {
         vk::SubmitInfo {}
-            .setCommandBuffers(m_commandBuffer)
-            .setWaitSemaphores(m_imageAvailableSemaphore)
+            .setCommandBuffers(cmd)
+            .setWaitSemaphores(m_imageAvailableSemaphores[m_currentInFlightFrame])
             .setWaitDstStageMask(waitDstStageMask)
-            .setSignalSemaphores(m_renderFinishedSemaphore)
+            .setSignalSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
             ,
     };
 
-    graphicsQueue.submit(submits, m_commandBufferReadyFence);
+    graphicsQueue.submit(submits, m_commandBufferReadyFences[m_currentInFlightFrame]);
 
     auto presentInfo = vk::PresentInfoKHR {}
         .setImageIndices(imageIndex)
         .setSwapchains(m_swapchain)
-        .setWaitSemaphores(m_renderFinishedSemaphore)
+        .setWaitSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
         ;
 
     vk::Queue presentQueue = m_device.getQueue(*m_queueFamilies.presentFamily, 0);
@@ -625,6 +638,8 @@ void Engine::draw() {
     if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
         rebuildSwapchain();
     } else vk::resultCheck(presentResult, "Failed to present render result");
+
+    m_currentInFlightFrame = ++m_currentInFlightFrame % getMaxFramesInFlight();
 }
 
 void Engine::cleanup() {
@@ -634,9 +649,11 @@ void Engine::cleanup() {
 
     m_device.destroyCommandPool(m_commandPool);
 
-    m_device.destroySemaphore(m_imageAvailableSemaphore);
-    m_device.destroySemaphore(m_renderFinishedSemaphore);
-    m_device.destroyFence(m_commandBufferReadyFence);
+    for (int i = 0; i < getMaxFramesInFlight(); i++) {
+        m_device.destroySemaphore(m_imageAvailableSemaphores[i]);
+        m_device.destroySemaphore(m_renderFinishedSemaphores[i]);
+        m_device.destroyFence(m_commandBufferReadyFences[i]);
+    }
 
     for (auto& imageView : m_swapchainImageViews)
         m_device.destroyImageView(imageView);

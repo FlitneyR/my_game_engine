@@ -15,14 +15,14 @@ class Game : public mge::Engine {
     typedef mge::Model<
         mge::ModelVertex,
         mge::ModelTransformMeshInstance,
-        mge::SingleTextureMaterialInstance,
+        mge::NTextureMaterialInstance<2>,
         mge::Camera
         > ObjectModel;
     
     typedef mge::Model<
         mge::ModelVertex,
         mge::ModelTransformMeshInstance,
-        mge::SingleTextureMaterialInstance,
+        mge::NTextureMaterialInstance<1>,
         mge::Camera
         > SkyboxModel;
     
@@ -38,12 +38,12 @@ class Game : public mge::Engine {
     std::unique_ptr<ObjectModel> m_asteroidModel;
     std::unique_ptr<ObjectModel::Mesh> m_asteroidMesh;
     std::unique_ptr<ObjectModel::Material::Instance> m_asteroidMaterialInstance;
-    mge::Texture m_asteroidTexture;
+    mge::Texture m_asteroidAlbedo, m_asteroidARM;
 
     std::unique_ptr<ObjectModel> m_spaceshipModel;
     std::unique_ptr<ObjectModel::Mesh> m_spaceshipMesh;
     std::unique_ptr<ObjectModel::Material::Instance> m_spaceshipMaterialInstance;
-    mge::Texture m_spaceshipTexture;
+    mge::Texture m_spaceshipAlbedo, m_spaceshipARM;
 
     std::unique_ptr<BulletModel> m_bulletModel;
     std::unique_ptr<BulletModel::Mesh> m_bulletMesh;
@@ -65,6 +65,8 @@ class Game : public mge::Engine {
     std::string getGameName() override { return "Asteroids"; }
     
     void start() override {
+        std::srand(std::chrono::system_clock::now().time_since_epoch().count());
+
         m_camera = std::make_unique<mge::Camera>(*this);
         m_camera->m_far = 10'000.f;
 
@@ -92,13 +94,15 @@ class Game : public mge::Engine {
                 1, 5, 3,
             });
 
-        m_asteroidTexture = mge::Texture("assets/asteroid.png");
-        m_spaceshipTexture = mge::Texture("assets/spaceship.png");
+        m_asteroidAlbedo = mge::Texture("assets/asteroid_albedo.png");
+        m_asteroidARM = mge::Texture("assets/asteroid_arm.png");
+        m_spaceshipAlbedo = mge::Texture("assets/spaceship_albedo.png");
+        m_spaceshipARM = mge::Texture("assets/spaceship_arm.png");
         m_skyboxTexture = mge::Texture("assets/skybox.png");
 
         m_objectMaterial = std::make_unique<ObjectModel::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"),
-            loadShaderModule("build/test.frag.spv")
+            loadShaderModule("build/pbr.frag.spv")
             );
 
         m_skyboxMaterial = std::make_unique<SkyboxMaterial>(*this,
@@ -112,13 +116,13 @@ class Game : public mge::Engine {
             );
 
         m_asteroidMaterialInstance = std::make_unique<ObjectModel::Material::Instance>(m_objectMaterial->makeInstance());
-        m_asteroidMaterialInstance->setup(m_asteroidTexture);
+        m_asteroidMaterialInstance->setup({ m_asteroidAlbedo, m_asteroidARM });
 
         m_spaceshipMaterialInstance = std::make_unique<ObjectModel::Material::Instance>(m_objectMaterial->makeInstance());
-        m_spaceshipMaterialInstance->setup(m_spaceshipTexture);
+        m_spaceshipMaterialInstance->setup({ m_spaceshipAlbedo, m_spaceshipARM });
 
         m_skyboxMaterialInstance = std::make_unique<SkyboxModel::Material::Instance>(m_skyboxMaterial->makeInstance());
-        m_skyboxMaterialInstance->setup(m_skyboxTexture);
+        m_skyboxMaterialInstance->setup({ m_skyboxTexture });
     
         m_bulletMaterialInstance = std::make_unique<BulletModel::Material::Instance>(m_bulletMaterial->makeInstance());
         m_bulletMaterialInstance->setup();
@@ -153,16 +157,16 @@ class Game : public mge::Engine {
         
         m_skyboxModel->makeInstance();
         
-        for (int i = 0; i < 1'000; i++) {
+        for (int i = 0; i < 2000; i++) {
             Asteroid asteroid;
 
-            asteroid.m_meshInstanceId = m_asteroidModel->makeInstance();
+            asteroid.m_modelInstanceId = m_asteroidModel->makeInstance();
             asteroid.start();
 
             m_asteroids.push_back(asteroid);
         }
 
-        m_spaceship.m_meshInstanceId = m_spaceshipModel->makeInstance();
+        m_spaceship.m_modelInstanceId = m_spaceshipModel->makeInstance();
         m_spaceship.m_position = glm::vec3(0.f);
         m_spaceship.m_velocity = glm::vec3(0.f);
         m_spaceship.m_yaw = 0.f;
@@ -196,27 +200,47 @@ class Game : public mge::Engine {
         m_objectMaterial->bindUniform(cmd, *m_camera);
 
         m_spaceshipModel->drawInstances(cmd);
+        
         m_asteroidModel->drawInstances(cmd);
 
         m_bulletMaterial->bindUniform(cmd, *m_camera);
         m_bulletModel->drawInstances(cmd);
     }
 
-    void update(double time, double deltaTime) override {
+    void update(double deltaTime) override {
         for (int i = m_bullets.size() - 1; i >= 0; i--) {
             Bullet& bullet = m_bullets[i];
             bullet.update(deltaTime);
             m_bulletModel->getInstance(bullet.m_meshInstanceId).m_modelTransform = bullet.getTransform();
 
-            bool shouldDestroyBullet = glm::distance(bullet.m_position, m_camera->m_position) > 500.f;
+            bool shouldDestroyBullet = glm::distance(bullet.m_position, m_camera->m_position) > 200.f;
 
             if (!shouldDestroyBullet)
             for (int j = m_asteroids.size() - 1; j >= 0; j--) {
                 Asteroid& asteroid = m_asteroids[j];
 
                 if (bullet.isColliding(asteroid)) {
-                    m_asteroidModel->destroyInstance(asteroid.m_meshInstanceId);
-                    asteroid = m_asteroids.back();
+                    glm::vec3 breakDirection = randomUnitVector() * glm::vec3(2.f, 2.f, 0.f) * asteroid.m_radius;
+                    float ratio = randomRangeFloat(0.1f, 0.9f);
+
+                    if (asteroid.m_radius > 2.f)
+                    for (int i = -1; i <= 1; i += 2) {
+                        Asteroid newAsteroid;
+                        newAsteroid.start();
+                        newAsteroid.m_radius = asteroid.m_radius * glm::lerp(ratio, 1.f - ratio, 0.5f + 0.5f * (float)i);
+                        newAsteroid.m_linearVelocity = (float)i * breakDirection;
+                        newAsteroid.m_position = asteroid.m_position + newAsteroid.m_linearVelocity * 0.25f;
+                        newAsteroid.m_angularVelocity *= 3.f;
+
+                        if (newAsteroid.m_radius < 1.f) continue;
+
+                        newAsteroid.m_modelInstanceId = m_asteroidModel->makeInstance();
+                        m_asteroids.push_back(newAsteroid);
+                    }
+
+                    m_asteroidModel->destroyInstance(asteroid.m_modelInstanceId);
+
+                    std::swap(asteroid, m_asteroids.back());
                     m_asteroids.pop_back();
 
                     shouldDestroyBullet = true;
@@ -231,13 +255,16 @@ class Game : public mge::Engine {
         }
 
         for (auto& asteroid : m_asteroids) {
-            for (auto& other : m_asteroids)
-            if (asteroid.isColliding(other))
-            if (asteroid.m_meshInstanceId != other.m_meshInstanceId)
-                asteroid.resolveCollision(other);
+            if (m_spaceship.isColliding(asteroid))
+                m_spaceship.die();
 
+            for (auto& other : m_asteroids)
+            if (asteroid.m_modelInstanceId != other.m_modelInstanceId)
+            if (asteroid.isColliding(other))
+                asteroid.resolveCollision(other);
+            
             asteroid.update(deltaTime, m_camera->m_position);
-            m_asteroidModel->getInstance(asteroid.m_meshInstanceId).m_modelTransform = asteroid.getTransform();
+            m_asteroidModel->getInstance(asteroid.m_modelInstanceId).m_modelTransform = asteroid.getTransform();
         }
 
         m_spaceship.update(
@@ -246,16 +273,16 @@ class Game : public mge::Engine {
             glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS,
             deltaTime
             );
-        m_spaceshipModel->getInstance(m_spaceship.m_meshInstanceId).m_modelTransform = m_spaceship.getTransform();
-
-        glm::vec3 cameraPosition = 
-            m_spaceship.m_position - m_spaceship.getForward() * 15.f + m_camera->m_up * 15.f;
         
-        glm::vec3 cameraTarget = 
-            m_spaceship.m_position + m_spaceship.getForward() * 15.f;
+        m_spaceshipModel->getInstance(m_spaceship.m_modelInstanceId).m_modelTransform = m_spaceship.getTransform();
 
-        m_camera->m_position = glm::lerp(m_camera->m_position, cameraPosition, (float)deltaTime * 3.f);
-        m_camera->m_forward = cameraTarget - m_camera->m_position;
+        if (m_spaceship.m_alive) {
+            m_camera->m_position = glm::lerp(m_camera->m_position, m_spaceship.getCameraPosition(), (float)deltaTime * 5.f);
+            m_camera->m_forward = m_spaceship.getCameraTarget() - m_camera->m_position;
+        } else {
+            m_camera->m_fov = glm::lerp(m_camera->m_fov, glm::radians(30.f), (float)deltaTime);
+            m_camera->m_forward = glm::lerp(m_camera->m_forward, m_spaceship.m_position - m_camera->m_position, (float)deltaTime);
+        }
 
         m_camera->updateBuffer();
 
@@ -271,12 +298,11 @@ class Game : public mge::Engine {
         
         static int previousShootState = GLFW_RELEASE;
 
-        if (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        if (m_spaceship.m_alive && glfwGetKey(m_window, GLFW_KEY_Z) == GLFW_PRESS) {
             if (previousShootState == GLFW_RELEASE) {
                 Bullet bullet {};
 
-                bullet.m_velocity = m_spaceship.m_velocity;
-                bullet.m_velocity += m_spaceship.getForward() * 100.f;
+                bullet.m_velocity = m_spaceship.getForward() * 100.f;
 
                 bullet.m_position = m_spaceship.m_position + m_spaceship.getForward() * 0.5f + m_spaceship.getRight();
                 bullet.m_meshInstanceId = m_bulletModel->makeInstance();
@@ -289,13 +315,6 @@ class Game : public mge::Engine {
                 previousShootState = GLFW_PRESS;
             }
         } else previousShootState = GLFW_RELEASE;
-        
-        // std::string title;
-        // title += s_gameName;
-        // title += " ";
-        // title += std::to_string(1.f / deltaTime);
-
-        // glfwSetWindowTitle(m_window, title.c_str());
     }
 
     void end() override {

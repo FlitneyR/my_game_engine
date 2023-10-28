@@ -3,7 +3,7 @@
 class SkyboxMaterial : public mge::Material<
     mge::ModelVertex,
     mge::ModelTransformMeshInstance,
-    mge::SingleTextureMaterialInstance,
+    mge::NTextureMaterialInstance<1>,
     mge::Camera
 > {
 public:
