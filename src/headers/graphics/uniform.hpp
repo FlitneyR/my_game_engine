@@ -5,8 +5,10 @@
 
 namespace mge {
 
+class UniformBase {};
+
 template<typename UniformData>
-class Uniform {
+class Uniform : public UniformBase {
 public:
     typedef UniformData BufferData;
 

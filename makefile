@@ -1,5 +1,5 @@
 DEPENDENCIES = glm glfw3 vulkan
-INCLUDES = -Isrc/headers `pkg-config --cflags $(DEPENDENCIES)`
+INCLUDES = -Isrc/headers -Isrc/headers/ECS -Isrc/headers/graphics `pkg-config --cflags $(DEPENDENCIES)`
 
 LFLAGS = -g `pkg-config --libs $(DEPENDENCIES)`
 CFLAGS = $(INCLUDES) -std=c++2a -g -O2 -c

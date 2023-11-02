@@ -8,8 +8,10 @@
 
 namespace mge {
 
+class MeshBase {};
+
 template<typename Vertex>
-class Mesh {
+class Mesh : public MeshBase {
     Engine& r_engine;
 
 public:

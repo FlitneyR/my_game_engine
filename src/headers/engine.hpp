@@ -2,8 +2,6 @@
 #define ENGINE_HPP
 
 #include <libraries.hpp>
-#include <gameobject.hpp>
-// #include <physics.hpp>
 
 #include <chrono>
 
@@ -75,16 +73,6 @@ public:
         ));
     }
 
-    std::vector<std::unique_ptr<GameObject>> m_gameObjects;
-
-    template<typename T>
-    T* getGameObject() {
-        for (auto& gameObject : m_gameObjects)
-        if (T* t = dynamic_cast<T*>(&*gameObject)) return t;
-
-        return nullptr;
-    }
-
     // === setup functions ===
     void checkInstanceLayers();
     void checkInstanceExtensions();
@@ -121,10 +109,11 @@ public:
     virtual void recordDrawCommands(vk::CommandBuffer cmd) {}
 
     virtual void physicsUpdate(double deltaTime) {
+        
     }
 
     virtual void update(double deltaTime) {
-        for (auto& go : m_gameObjects) go->update(deltaTime);
+        
     }
 
     virtual void end() {}

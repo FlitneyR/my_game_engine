@@ -10,11 +10,22 @@
 
 namespace mge {
 
+struct ModelBase {
+    virtual void setup() = 0;
+    virtual void updateInstanceBuffer() = 0;
+    virtual void drawInstances(vk::CommandBuffer cmd) = 0;
+    virtual void cleanup() = 0;
+
+    virtual uint32_t makeInstance() = 0;
+    virtual MeshInstanceBase& getInstance(uint32_t instanceID) = 0;
+    virtual void destroyInstance(uint32_t instanceID) = 0;
+};
+
 #define MODEL_TEMPLATE template<typename Vertex, typename MeshInstance, typename MaterialInstance, typename UniformType>
 #define MODEL Model<Vertex, MeshInstance, MaterialInstance, UniformType>
 
 MODEL_TEMPLATE
-class Model {
+class Model : public ModelBase {
     Engine& r_engine;
 
 public:
@@ -34,7 +45,6 @@ public:
     void setupInstanceBuffers();
     void allocateInstanceBuffer(int index);
 
-public:
     Model(Engine& engine, Mesh& mesh, Material& material, MaterialInstance m_materialInstance) :
         r_engine(engine),
         m_mesh(&mesh),
@@ -42,27 +52,27 @@ public:
         m_materialInstance(m_materialInstance)
     {}
 
-    void setup();
-    void updateInstanceBuffer();
+    void setup() override;
+    void updateInstanceBuffer() override;
     void updateInstanceBuffer(int index);
-    void cleanup();
+    void cleanup() override;
 
-    uint32_t makeInstance() {
+    uint32_t makeInstance() override {
         uint32_t id = nextInstanceID++;
         m_meshInstances[id] = MeshInstance {};
         // m_instances[id] = Instance { this, id };
         return id;
     }
 
-    MeshInstance& getInstance(uint32_t instanceID) {
+    MeshInstance& getInstance(uint32_t instanceID) override {
         return m_meshInstances[instanceID];
     }
 
-    void destroyInstance(uint32_t instanceID) {
+    void destroyInstance(uint32_t instanceID) override {
         m_meshInstances.erase(instanceID);
     }
 
-    void drawInstances(vk::CommandBuffer cmd);
+    void drawInstances(vk::CommandBuffer cmd) override;
     void drawInstances(vk::CommandBuffer cmd, int index);
 };
 

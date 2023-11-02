@@ -62,9 +62,6 @@ void Engine::main() {
         double deltaTime = static_cast<double>(microsSinceLastFrame) / 1'000'000.f;
         
         glfwPollEvents();
-
-        for (auto& go : m_gameObjects) if (!go->m_hasStarted) go->start();
-
         physicsUpdate(deltaTime);
         update(deltaTime);
         draw();

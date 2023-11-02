@@ -10,8 +10,10 @@ namespace mge {
 #define MATERIAL_TEMPLATE template<typename Vertex, typename MeshInstance, typename MaterialInstance, typename UniformType>
 #define MATERIAL Material<Vertex, MeshInstance, MaterialInstance, UniformType>
 
+class MaterialBase {};
+
 MATERIAL_TEMPLATE
-class Material {
+class Material : public MaterialBase {
     Engine& r_engine;
 
     vk::ShaderModule m_vertexShader, m_fragmentShader;

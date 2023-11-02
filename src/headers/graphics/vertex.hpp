@@ -5,7 +5,9 @@
 
 namespace mge {
 
-class PointColorVertex {
+class VertexBase {};
+
+class PointColorVertex : public VertexBase {
     glm::vec3 m_position;
     glm::vec4 m_colour;
 
@@ -42,7 +44,7 @@ public:
     }
 };
 
-class ModelVertex {
+class ModelVertex : public VertexBase {
 public:
     glm::vec3 m_position;
     glm::vec3 m_normal;

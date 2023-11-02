@@ -7,7 +7,11 @@
 
 namespace mge {
 
-struct SimpleMeshInstance {
+class MeshInstanceBase {};
+
+class MaterialInstanceBase {};
+
+struct SimpleMeshInstance : public MeshInstanceBase {
     static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes(uint32_t firstAvailableLocation) {
         return {};
     }
@@ -17,7 +21,7 @@ struct SimpleMeshInstance {
     }
 };
 
-struct SimpleMaterialInstance {
+struct SimpleMaterialInstance : public MaterialInstanceBase {
     SimpleMaterialInstance(Engine& engine) {}
 
     static vk::DescriptorSetLayout s_descriptorSetLayout;
@@ -27,7 +31,7 @@ struct SimpleMaterialInstance {
     void cleanup() {}
 };
 
-struct ModelTransformMeshInstance {
+struct ModelTransformMeshInstance : public MeshInstanceBase {
     glm::mat4 m_modelTransform;
 
     ModelTransformMeshInstance() :
@@ -100,7 +104,7 @@ struct Texture {
 #define NTEXTURE_MATERIAL_INSTANCE NTextureMaterialInstance<N>
 
 NTEXTURE_TEMPLATE
-class NTextureMaterialInstance {
+class NTextureMaterialInstance : public MaterialInstanceBase {
 public:
     Engine* r_engine;
 

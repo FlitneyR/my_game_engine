@@ -2,55 +2,8 @@
 #define ASTEROID_HPP
 
 #include <engine.hpp>
-#include <physics.hpp>
 
 constexpr float MAX_ASTEROID_DISTANCE = 1000.f;
-
-// class Asteroid : public mge::RigidBody {
-// public:
-//     Asteroid() {
-//         m_collider = std::make_unique<mge::SphereCollider>();
-//     }
-
-//     void start() override {
-//         mge::RigidBody::start();
-
-//         m_rotation = glm::angleAxis(
-//             mge::Engine::randomRangeFloat(-1.f, 1.f) * glm::pi<float>(),
-//             mge::Engine::randomUnitVector()
-//         );
-
-//         m_angularVelocity = mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(0.f, 0.25f) * glm::pi<float>();
-
-//         m_position = glm::vec3(
-//             mge::Engine::randomRangeFloat(-1.f, 1.f) * MAX_ASTEROID_DISTANCE,
-//             mge::Engine::randomRangeFloat(-1.f, 1.f) * MAX_ASTEROID_DISTANCE,
-//             0
-//         );
-
-//         m_linearVelocity = glm::vec3(
-//             mge::Engine::randomRangeFloat(-1.f, 1.f) * 5.f,
-//             mge::Engine::randomRangeFloat(-1.f, 1.f) * 5.f,
-//             0
-//         );
-
-//         float radius = glm::pow(mge::Engine::randomRangeFloat(1.f, 2.f), 4.f);
-//         m_scale = glm::vec3(radius);
-
-//         dynamic_cast<mge::SphereCollider*>(m_collider.get())->m_radius = radius;
-//     }
-
-//     void update(float deltaTime) override {
-//         mge::RigidBody::update(deltaTime);
-
-//         if (m_position.x >  MAX_ASTEROID_DISTANCE) m_position.x -= 2 * MAX_ASTEROID_DISTANCE;
-//         if (m_position.x < -MAX_ASTEROID_DISTANCE) m_position.x += 2 * MAX_ASTEROID_DISTANCE;
-//         if (m_position.y >  MAX_ASTEROID_DISTANCE) m_position.y -= 2 * MAX_ASTEROID_DISTANCE;
-//         if (m_position.y < -MAX_ASTEROID_DISTANCE) m_position.y += 2 * MAX_ASTEROID_DISTANCE;
-//         if (m_position.z >  MAX_ASTEROID_DISTANCE) m_position.z -= 2 * MAX_ASTEROID_DISTANCE;
-//         if (m_position.z < -MAX_ASTEROID_DISTANCE) m_position.z += 2 * MAX_ASTEROID_DISTANCE;
-//     }
-// };
 
 struct Asteroid {
     glm::vec3 m_position;
