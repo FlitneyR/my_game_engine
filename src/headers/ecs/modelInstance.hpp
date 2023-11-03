@@ -17,7 +17,7 @@ public:
 class ModelSystem : public System<ModelComponent> {
 public:
     ModelBase* r_model;
-    System<TransformComponent>& r_transformSystem;
+    System<TransformComponent>* r_transformSystem;
 
     ModelComponent* addComponent(const Entity& entity) override {
         auto* comp = System<ModelComponent>::addComponent(entity);
@@ -26,17 +26,20 @@ public:
     }
 
     void updateTransforms() {
-        if (!m_components.empty()) {
-            auto firstInstance = &r_model->getInstance(m_components.begin()->second.m_instanceID);
-
-            for (auto& [ entity, comp ] : m_components)
-            if (const auto transform = r_transformSystem.getComponent(entity)) {
-                auto instance = static_cast<ModelTransformMeshInstance*>(&r_model->getInstance(comp.m_instanceID));
-                instance->m_modelTransform = transform->getMatrix();
-            }
+        for (auto& [ entity, comp ] : m_components)
+        if (const auto transform = r_transformSystem->getComponent(entity)) {
+            auto instance = static_cast<ModelTransformMeshInstance*>(&r_model->getInstance(comp.m_instanceID));
+            instance->m_modelTransform = transform->getMat4();
         }
 
         r_model->updateInstanceBuffer();
+    }
+
+    void removeComponent(const Entity& entity) override {
+        if (auto comp = getComponent(entity))
+            r_model->destroyInstance(comp->m_instanceID);
+        
+        System<ModelComponent>::removeComponent(entity);
     }
 };
 

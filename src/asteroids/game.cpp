@@ -3,10 +3,12 @@
 #include <camera.hpp>
 #include <objloader.hpp>
 
-#include "asteroid.hpp"
+// #include "asteroid.hpp"
 #include "skybox.hpp"
-#include "bullet.hpp"
-#include "spaceship.hpp"
+// #include "bullet.hpp"
+// #include "spaceship.hpp"
+#include "logic.hpp"
+#include <modelInstance.hpp>
 
 #include <iostream>
 #include <memory>
@@ -56,11 +58,18 @@ class Game : public mge::Engine {
     std::unique_ptr<SkyboxModel::Material::Instance> m_skyboxMaterialInstance;
     mge::Texture m_skyboxTexture;
 
-    std::vector<Asteroid> m_asteroids;
-    std::vector<Bullet> m_bullets;
-    Spaceship m_spaceship;
-
     std::unique_ptr<mge::Camera> m_camera;
+
+    mge::ecs::ECSManager m_ecsManager;
+
+    AsteroidSystem m_asteroidSystem;
+    BulletSystem m_bulletSystem;
+    SpaceshipSystem m_spaceshipSystem;
+    mge::ecs::RigidbodySystem m_rigidbodySystem;
+    mge::ecs::System<mge::ecs::TransformComponent> m_transformSystem;
+    mge::ecs::CollisionSystem m_collisionSystem;
+
+    mge::ecs::ModelSystem m_asteroidModelSystem, m_spaceshipModelSystem, m_bulletModelSystem;
 
     std::string getGameName() override { return "Asteroids"; }
     
@@ -68,7 +77,12 @@ class Game : public mge::Engine {
         std::srand(std::chrono::system_clock::now().time_since_epoch().count());
 
         m_camera = std::make_unique<mge::Camera>(*this);
+        m_camera->m_near = 0.1f;
         m_camera->m_far = 10'000.f;
+        m_camera->m_fov = glm::radians(70.f);
+        m_camera->m_position = glm::vec3 { 0.f, 0.f, 0.f };
+        m_camera->m_forward = glm::vec3 { 0.f, 1.f, 0.f };
+        m_camera->m_up = glm::vec3 { 0.f, 0.f, 1.f };
 
         m_asteroidMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroid.obj"));
         m_spaceshipMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/spaceship.obj"));
@@ -156,23 +170,89 @@ class Game : public mge::Engine {
             );
         
         m_skyboxModel->makeInstance();
+
+        m_asteroidSystem.r_spaceshipSystem = &m_spaceshipSystem;
+        m_asteroidSystem.r_transformSystem = &m_transformSystem;
+        m_asteroidSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_asteroidSystem);
+
+        m_bulletSystem.r_asteroidSystem = &m_asteroidSystem;
+        m_bulletSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_bulletSystem);
+
+        m_spaceshipSystem.r_asteroidSystem = &m_asteroidSystem;
+        m_spaceshipSystem.r_bulletModelSystem = &m_bulletModelSystem;
+        m_spaceshipSystem.r_bulletSystem = &m_bulletSystem;
+        m_spaceshipSystem.r_collisionSystem = &m_collisionSystem;
+        m_spaceshipSystem.r_rigidBodySystem = &m_rigidbodySystem;
+        m_spaceshipSystem.r_transformSystem = &m_transformSystem;
+        m_spaceshipSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_spaceshipSystem);
+
+        m_rigidbodySystem.r_transformSystem = &m_transformSystem;
+        m_rigidbodySystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_rigidbodySystem);
+
+        m_transformSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_transformSystem);
+
+        m_asteroidModelSystem.r_model = m_asteroidModel.get();
+        m_spaceshipModelSystem.r_model = m_spaceshipModel.get();
+        m_bulletModelSystem.r_model = m_bulletModel.get();
+
+        m_asteroidModelSystem.r_transformSystem = &m_transformSystem;
+        m_spaceshipModelSystem.r_transformSystem = &m_transformSystem;
+        m_bulletModelSystem.r_transformSystem = &m_transformSystem;
+
+        m_asteroidModelSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_asteroidModelSystem);
+        m_spaceshipModelSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_spaceshipModelSystem);
+        m_bulletModelSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_bulletModelSystem);
+
+        m_collisionSystem.r_transformSystem = &m_transformSystem;
+        m_collisionSystem.r_ecsManager = &m_ecsManager;
+        m_ecsManager.m_systems.push_back(&m_collisionSystem);
         
-        for (int i = 0; i < 2000; i++) {
-            Asteroid asteroid;
+        for (int i = 0; i < 8'000; i++) {
+            auto entity = m_ecsManager.makeEntity();
 
-            asteroid.m_modelInstanceId = m_asteroidModel->makeInstance();
-            asteroid.start();
+            m_asteroidSystem.addComponent(entity);
+            m_asteroidModelSystem.addComponent(entity);
 
-            m_asteroids.push_back(asteroid);
+            auto collider = m_collisionSystem.addComponent(entity);
+            auto transform = m_transformSystem.addComponent(entity);
+            auto rigidbody = m_rigidbodySystem.addComponent(entity);
+
+            float radius = glm::mix(5.f, 40.f, glm::pow(randomRangeFloat(0.f, 1.f), 40.f));
+            collider->setupSphere(radius);
+
+            transform->setPosition(glm::vec3 {
+                randomRangeFloat(-1.f, 1.f),
+                randomRangeFloat(-1.f, 1.f),
+                randomRangeFloat(-1.f, 1.f)
+            } * AsteroidSystem::MAX_DISTANCE);
+            transform->setRotation(glm::angleAxis(randomRangeFloat(-glm::pi<float>(), glm::pi<float>()), randomUnitVector()));
+            transform->setScale(glm::vec3 { radius });
+
+            rigidbody->m_velocity = randomUnitVector() * randomRangeFloat(0.f, 15.f) * glm::vec3 { 1.f, 1.f, 1.f };
+            rigidbody->m_physicsType = rigidbody->e_dynamic;
+            rigidbody->m_mass = radius * radius * radius;
+            rigidbody->m_angularVelocity = randomRangeFloat(0.f, 1.f) * randomUnitVector();
         }
 
-        m_spaceship.m_modelInstanceId = m_spaceshipModel->makeInstance();
-        m_spaceship.m_position = glm::vec3(0.f);
-        m_spaceship.m_velocity = glm::vec3(0.f);
-        m_spaceship.m_yaw = 0.f;
-        m_spaceship.m_roll = 0.f;
+        auto spaceshipEntity = m_ecsManager.makeEntity();
+        m_spaceshipModelSystem.addComponent(spaceshipEntity);
+        m_spaceshipSystem.addComponent(spaceshipEntity);
+        auto spaceshipTransform = m_transformSystem.addComponent(spaceshipEntity);
+        m_collisionSystem.addComponent(spaceshipEntity)->setupSphere(2.f);
+        auto spaceshipRigidbody = m_rigidbodySystem.addComponent(spaceshipEntity);
+        spaceshipRigidbody->m_physicsType = spaceshipRigidbody->e_kinematic;
+        spaceshipRigidbody->m_mass = 200.f;
 
-        m_camera->m_up = glm::vec3(0.f, 0.f, 1.f);
+        m_camera->m_position = spaceshipTransform->getPosition() + spaceshipTransform->getUp();
+        m_camera->m_up = spaceshipTransform->getUp();
 
         m_camera->setup();
 
@@ -194,6 +274,8 @@ class Game : public mge::Engine {
     }
 
     void recordDrawCommands(vk::CommandBuffer cmd) override {
+        m_camera->updateBuffer();
+
         m_skyboxMaterial->bindUniform(cmd, *m_camera);
         m_skyboxModel->drawInstances(cmd);
 
@@ -208,113 +290,85 @@ class Game : public mge::Engine {
     }
 
     void update(double deltaTime) override {
-        for (int i = m_bullets.size() - 1; i >= 0; i--) {
-            Bullet& bullet = m_bullets[i];
-            bullet.update(deltaTime);
-            m_bulletModel->getInstance(bullet.m_meshInstanceId).m_modelTransform = bullet.getTransform();
+        auto collisionEvents = m_collisionSystem.getCollisionEvents();
 
-            bool shouldDestroyBullet = glm::distance(bullet.m_position, m_camera->m_position) > 200.f;
+        m_bulletSystem.handleCollisions(collisionEvents);
+        m_spaceshipSystem.checkForAsteroidCollision(collisionEvents);
+        m_rigidbodySystem.resolveCollisions(collisionEvents);
 
-            if (!shouldDestroyBullet)
-            for (int j = m_asteroids.size() - 1; j >= 0; j--) {
-                Asteroid& asteroid = m_asteroids[j];
+        m_rigidbodySystem.update(deltaTime);
 
-                if (bullet.isColliding(asteroid)) {
-                    glm::vec3 breakDirection = randomUnitVector() * glm::vec3(2.f, 2.f, 0.f) * asteroid.m_radius;
-                    float ratio = randomRangeFloat(0.1f, 0.9f);
+        m_bulletSystem.destroyOldBullets(deltaTime);
 
-                    if (asteroid.m_radius > 2.f)
-                    for (int i = -1; i <= 1; i += 2) {
-                        Asteroid newAsteroid;
-                        newAsteroid.start();
-                        newAsteroid.m_radius = asteroid.m_radius * glm::lerp(ratio, 1.f - ratio, 0.5f + 0.5f * (float)i);
-                        newAsteroid.m_linearVelocity = (float)i * breakDirection;
-                        newAsteroid.m_position = asteroid.m_position + newAsteroid.m_linearVelocity * 0.25f;
-                        newAsteroid.m_angularVelocity *= 3.f;
+        static bool accelerate = false;
+        static bool pitchUp = false;
+        static bool pitchDown = false;
+        static bool turnLeft = false;
+        static bool turnRight = false;
+        static bool fire = false;
+        static bool fireHeld = false;
 
-                        if (newAsteroid.m_radius < 1.f) continue;
-
-                        newAsteroid.m_modelInstanceId = m_asteroidModel->makeInstance();
-                        m_asteroids.push_back(newAsteroid);
-                    }
-
-                    m_asteroidModel->destroyInstance(asteroid.m_modelInstanceId);
-
-                    std::swap(asteroid, m_asteroids.back());
-                    m_asteroids.pop_back();
-
-                    shouldDestroyBullet = true;
-                }
-            }
-
-            if (shouldDestroyBullet) {
-                m_bulletModel->destroyInstance(bullet.m_meshInstanceId);
-                bullet = m_bullets.back();
-                m_bullets.pop_back();
-            }
-        }
-
-        for (auto& asteroid : m_asteroids) {
-            if (m_spaceship.isColliding(asteroid))
-                m_spaceship.die();
-
-            for (auto& other : m_asteroids)
-            if (asteroid.m_modelInstanceId != other.m_modelInstanceId)
-            if (asteroid.isColliding(other))
-                asteroid.resolveCollision(other);
-            
-            asteroid.update(deltaTime, m_camera->m_position);
-            m_asteroidModel->getInstance(asteroid.m_modelInstanceId).m_modelTransform = asteroid.getTransform();
-        }
-
-        m_spaceship.update(
-            glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS,
-            glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS,
-            glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS,
-            deltaTime
-            );
+        accelerate = glfwGetKey(m_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+        pitchUp = glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS;
+        pitchDown = glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        turnLeft = glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS;
+        turnRight = glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS;
         
-        m_spaceshipModel->getInstance(m_spaceship.m_modelInstanceId).m_modelTransform = m_spaceship.getTransform();
+        bool fireKeyDown = glfwGetKey(m_window, GLFW_KEY_Z) == GLFW_PRESS;
 
-        if (m_spaceship.m_alive) {
-            m_camera->m_position = glm::lerp(m_camera->m_position, m_spaceship.getCameraPosition(), (float)deltaTime * 5.f);
-            m_camera->m_forward = m_spaceship.getCameraTarget() - m_camera->m_position;
+        fire = fireKeyDown && !fireHeld;
+        fireHeld = fireKeyDown;
+
+        m_spaceshipSystem.update(deltaTime, accelerate, pitchUp, pitchDown, turnLeft, turnRight, fire);
+
+        m_asteroidSystem.wrapAsteroids();
+
+        auto spaceshipEntity = m_spaceshipSystem.m_components.begin()->first;
+
+        auto spaceship = m_spaceshipSystem.getComponent(spaceshipEntity);
+        auto spaceshipTransform = m_transformSystem.getComponent(spaceshipEntity);
+
+        glm::vec3 cameraTargetPosition, cameraFocus, cameraUp;
+        float targetFov;
+
+        if (spaceship->m_alive) {
+            cameraTargetPosition = spaceshipTransform->getPosition();
+            cameraTargetPosition += spaceshipTransform->getForward() * -10.f;
+            cameraTargetPosition += spaceshipTransform->getUp() * 5.f;
+
+            cameraFocus = spaceshipTransform->getPosition();
+            cameraFocus += spaceshipTransform->getForward() * 10.f;
+            cameraFocus += spaceshipTransform->getUp() * 2.5f;
+
+            cameraUp = spaceshipTransform->getUp();
+
+            targetFov = glm::radians(70.f);
         } else {
-            m_camera->m_fov = glm::lerp(m_camera->m_fov, glm::radians(30.f), (float)deltaTime);
-            m_camera->m_forward = glm::lerp(m_camera->m_forward, m_spaceship.m_position - m_camera->m_position, (float)deltaTime);
+            cameraTargetPosition = m_camera->m_position;
+            cameraFocus = spaceshipTransform->getPosition();
+
+            cameraUp = m_camera->m_up;
+
+            targetFov = glm::radians(10.f);
         }
 
-        m_camera->updateBuffer();
+        m_camera->m_position = glm::mix(m_camera->m_position, cameraTargetPosition, 5.f * deltaTime);
+        m_camera->m_forward = cameraFocus - m_camera->m_position;
+        m_camera->m_up = glm::mix(m_camera->m_up, cameraUp, deltaTime);
+        m_camera->m_fov = glm::mix(m_camera->m_fov, targetFov, deltaTime * 0.3f);
 
-        m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4(1.f), m_camera->m_position);
+        // m_camera->m_position = glm::vec3 { 0.f, -30.f, 20.f };
+        // m_camera->m_forward = glm::vec3 { 0.f, 3.f, -2.f };
 
-        m_asteroidModel->updateInstanceBuffer();
+        m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4 { 1.f }, m_camera->m_position);
+        m_bulletModelSystem.updateTransforms();
+        m_asteroidModelSystem.updateTransforms();
+        m_spaceshipModelSystem.updateTransforms();
+
         m_spaceshipModel->updateInstanceBuffer();
-        m_bulletModel->updateInstanceBuffer();
         m_skyboxModel->updateInstanceBuffer();
-
-        if (glfwGetKey(m_window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(m_window, GLFW_TRUE);
-        
-        static int previousShootState = GLFW_RELEASE;
-
-        if (m_spaceship.m_alive && glfwGetKey(m_window, GLFW_KEY_Z) == GLFW_PRESS) {
-            if (previousShootState == GLFW_RELEASE) {
-                Bullet bullet {};
-
-                bullet.m_velocity = m_spaceship.getForward() * 100.f;
-
-                bullet.m_position = m_spaceship.m_position + m_spaceship.getForward() * 0.5f + m_spaceship.getRight();
-                bullet.m_meshInstanceId = m_bulletModel->makeInstance();
-                m_bullets.push_back(bullet);
-
-                bullet.m_position = m_spaceship.m_position + m_spaceship.getForward() * 0.5f - m_spaceship.getRight();
-                bullet.m_meshInstanceId = m_bulletModel->makeInstance();
-                m_bullets.push_back(bullet);
-
-                previousShootState = GLFW_PRESS;
-            }
-        } else previousShootState = GLFW_RELEASE;
+        m_bulletModel->updateInstanceBuffer();
+        m_asteroidModel->updateInstanceBuffer();
     }
 
     void end() override {

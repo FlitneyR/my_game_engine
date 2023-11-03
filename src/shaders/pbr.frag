@@ -11,7 +11,7 @@ layout(set = 1, binding = 0) uniform sampler2D albedoTex;
 layout(set = 1, binding = 1) uniform sampler2D armTex;
 
 const vec3 lightDirection = -normalize(vec3(1, 1, -1));
-const vec3 lightColour = vec3(1, 1, 1);
+const vec3 lightColour = vec3(1);
 const vec3 ambientLight = vec3(0.01);
 const float PI = 3.141592654;
 

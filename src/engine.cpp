@@ -588,7 +588,7 @@ void Engine::draw() {
 
     std::vector<vk::ClearValue> clearValues {
         vk::ClearValue {}
-            .setColor({ 0.f, 0.01f, 0.025f, 1.f })
+            .setColor({ 0.f, 0.f, 0.f, 1.f })
             ,
         vk::ClearValue {}
             .setDepthStencil({ 1.0f, 0 })
