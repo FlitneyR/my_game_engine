@@ -2,8 +2,9 @@
 #define MATERIAL_HPP
 
 #include <libraries.hpp>
-
 #include <engine.hpp>
+
+#include <iostream>
 
 namespace mge {
 
@@ -14,6 +15,7 @@ class MaterialBase {};
 
 MATERIAL_TEMPLATE
 class Material : public MaterialBase {
+protected:
     Engine& r_engine;
 
     vk::ShaderModule m_vertexShader, m_fragmentShader;
@@ -30,21 +32,21 @@ public:
         m_fragmentShader(fragmentShader)
     {}
 
-    void setup();
+    virtual void setup();
 
     void bindUniform(vk::CommandBuffer cmd, UniformType& uniform);
-    void bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index);
-    void bindPipeline(vk::CommandBuffer cmd);
+    virtual void bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index);
+    virtual void bindPipeline(vk::CommandBuffer cmd);
     void bindInstance(vk::CommandBuffer cmd, MaterialInstance instance);
 
-    void cleanup();
+    virtual void cleanup();
 
     MaterialInstance makeInstance() {
         MaterialInstance result { r_engine };
         return result;
     }
 
-private:
+protected:
     virtual void createDescriptorSetLayouts();
     virtual void createPipelineLayout();
 
@@ -54,6 +56,7 @@ private:
     virtual vk::PipelineRasterizationStateCreateInfo getRasterizationState();
     virtual vk::PipelineDepthStencilStateCreateInfo getDepthStencilState();
     virtual vk::PipelineColorBlendStateCreateInfo getColorBlendState();
+    virtual uint32_t getSubpassIndex() { return 0; }
 
     virtual void createPipeline();
 };
@@ -156,7 +159,7 @@ vk::PipelineDepthStencilStateCreateInfo MATERIAL::getDepthStencilState() {
 
 MATERIAL_TEMPLATE
 vk::PipelineColorBlendStateCreateInfo MATERIAL::getColorBlendState() {
-    static vk::PipelineColorBlendAttachmentState attachments; attachments
+    static auto attachment = vk::PipelineColorBlendAttachmentState {}
         .setColorWriteMask( vk::ColorComponentFlagBits::eR
                         |   vk::ColorComponentFlagBits::eG
                         |   vk::ColorComponentFlagBits::eB
@@ -169,6 +172,10 @@ vk::PipelineColorBlendStateCreateInfo MATERIAL::getColorBlendState() {
         .setSrcAlphaBlendFactor(vk::BlendFactor::eOne)
         .setDstAlphaBlendFactor(vk::BlendFactor::eZero)
         ;
+
+    static auto attachments = std::vector<vk::PipelineColorBlendAttachmentState> {
+        attachment, attachment, attachment, attachment,
+    };
 
     return vk::PipelineColorBlendStateCreateInfo {}
         .setAttachments(attachments)
@@ -214,7 +221,7 @@ void MATERIAL::createPipeline() {
             ,
     };
 
-    vk::GraphicsPipelineCreateInfo createInfo; createInfo
+    auto createInfo = vk::GraphicsPipelineCreateInfo {}
         .setLayout(m_pipelineLayout)
         .setPDynamicState(&dynamicState)
         .setPVertexInputState(&vertexInputState)
@@ -226,7 +233,7 @@ void MATERIAL::createPipeline() {
         .setPViewportState(&viewportState)
         .setRenderPass(r_engine.m_renderPass)
         .setStages(stages)
-        .setSubpass(0)
+        .setSubpass(getSubpassIndex())
         ;
 
     auto pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);

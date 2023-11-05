@@ -3,34 +3,18 @@
 #include <camera.hpp>
 #include <objloader.hpp>
 #include <skybox.hpp>
+#include <lightInstance.hpp>
+#include <modelInstance.hpp>
 
 #include "logic.hpp"
-#include <modelInstance.hpp>
 
 #include <iostream>
 #include <memory>
 
 class Game : public mge::Engine {
-    typedef mge::Model<
-        mge::ModelVertex,
-        mge::ModelTransformMeshInstance,
-        mge::NTextureMaterialInstance<2>,
-        mge::Camera
-        > ObjectModel;
-    
-    typedef mge::Model<
-        mge::ModelVertex,
-        mge::ModelTransformMeshInstance,
-        mge::NTextureMaterialInstance<1>,
-        mge::Camera
-        > SkyboxModel;
-    
-    typedef mge::Model<
-        mge::PointColorVertex,
-        mge::ModelTransformMeshInstance,
-        mge::SimpleMaterialInstance,
-        mge::Camera
-        > BulletModel;
+    typedef mge::Model<mge::ModelVertex, mge::ModelTransformMeshInstance, mge::NTextureMaterialInstance<2>, mge::Camera> ObjectModel;
+    typedef mge::Model<mge::ModelVertex, mge::ModelTransformMeshInstance, mge::NTextureMaterialInstance<1>, mge::Camera> SkyboxModel;
+    typedef mge::Model< mge::PointColorVertex, mge::ModelTransformMeshInstance, mge::SimpleMaterialInstance, mge::Camera> BulletModel;
 
     std::unique_ptr<ObjectModel::Material> m_objectMaterial;
 
@@ -55,6 +39,11 @@ class Game : public mge::Engine {
     std::unique_ptr<SkyboxModel::Material::Instance> m_skyboxMaterialInstance;
     mge::Texture m_skyboxTexture;
 
+    std::unique_ptr<mge::Light> m_light;
+    std::unique_ptr<mge::Light::Mesh> m_lightQuad;
+    std::unique_ptr<mge::LightMaterial> m_lightMaterial;
+    std::unique_ptr<mge::LightMaterial::Instance> m_lightMaterialInstance;
+
     std::unique_ptr<mge::Camera> m_camera;
 
     mge::ecs::ECSManager m_ecsManager;
@@ -66,6 +55,7 @@ class Game : public mge::Engine {
     mge::ecs::System<mge::ecs::TransformComponent> m_transformSystem;
     mge::ecs::CollisionSystem m_collisionSystem;
     mge::ecs::ModelSystem m_modelSystem;
+    mge::ecs::LightSystem m_lightSystem;
 
     std::string getGameName() override { return "Asteroids"; }
     
@@ -83,6 +73,7 @@ class Game : public mge::Engine {
         m_asteroidMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroid.obj"));
         m_spaceshipMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/spaceship.obj"));
         m_skyboxMesh = std::make_unique<SkyboxModel::Mesh>(mge::loadObjMesh(*this, "assets/skybox.obj"));
+        m_lightQuad = std::make_unique<mge::Light::Mesh>(makeFullScreenQuad(*this));
         m_bulletMesh = std::make_unique<BulletModel::Mesh>(
             *this,
             std::vector<mge::PointColorVertex> {
@@ -94,14 +85,10 @@ class Game : public mge::Engine {
                 { {   0.0f,   0.0f, -1.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 5
             },
             std::vector<uint16_t> {
-                0, 4, 3,
-                0, 2, 4,
-                0, 5, 2,
-                0, 3, 5,
-                1, 3, 4,
-                1, 4, 2,
-                1, 2, 5,
-                1, 5, 3,
+                0, 4, 3,    0, 2, 4,
+                0, 5, 2,    0, 3, 5,
+                1, 3, 4,    1, 4, 2,
+                1, 2, 5,    1, 5, 3,
             });
 
         m_asteroidAlbedo = mge::Texture("assets/asteroid_albedo.png");
@@ -111,19 +98,16 @@ class Game : public mge::Engine {
         m_skyboxTexture = mge::Texture("assets/skybox.png");
 
         m_objectMaterial = std::make_unique<ObjectModel::Material>(*this,
-            loadShaderModule("build/mvp.vert.spv"),
-            loadShaderModule("build/pbr.frag.spv")
-            );
+            loadShaderModule("build/mvp.vert.spv"), loadShaderModule("build/pbr.frag.spv"));
 
         m_skyboxMaterial = std::make_unique<mge::SkyboxMaterial>(*this,
-            loadShaderModule("build/skybox.vert.spv"),
-            loadShaderModule("build/skybox.frag.spv")
-            );
+            loadShaderModule("build/skybox.vert.spv"), loadShaderModule("build/skybox.frag.spv"));
         
         m_bulletMaterial = std::make_unique<BulletModel::Material>(*this,
-            loadShaderModule("build/bullet.vert.spv"),
-            loadShaderModule("build/bullet.frag.spv")
-            );
+            loadShaderModule("build/bullet.vert.spv"), loadShaderModule("build/bullet.frag.spv"));
+        
+        m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
+            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/fullscreenLight.frag.spv"));
 
         m_asteroidMaterialInstance = std::make_unique<ObjectModel::Material::Instance>(m_objectMaterial->makeInstance());
         m_asteroidMaterialInstance->setup({ m_asteroidAlbedo, m_asteroidARM });
@@ -137,35 +121,18 @@ class Game : public mge::Engine {
         m_bulletMaterialInstance = std::make_unique<BulletModel::Material::Instance>(m_bulletMaterial->makeInstance());
         m_bulletMaterialInstance->setup();
 
-        m_asteroidModel = std::make_unique<ObjectModel>(
-            *this,
-            *m_asteroidMesh,
-            *m_objectMaterial,
-            *m_asteroidMaterialInstance
-            );
+        m_lightMaterialInstance = std::make_unique<mge::Light::Material::Instance>(m_lightMaterial->makeInstance());
+        m_lightMaterialInstance->setup();
 
-        m_spaceshipModel = std::make_unique<ObjectModel>(
-            *this,
-            *m_spaceshipMesh,
-            *m_objectMaterial,
-            *m_spaceshipMaterialInstance
-            );
-        
-        m_skyboxModel = std::make_unique<SkyboxModel>(
-            *this,
-            *m_skyboxMesh,
-            *m_skyboxMaterial,
-            *m_skyboxMaterialInstance
-            );
-        
-        m_bulletModel = std::make_unique<BulletModel>(
-            *this,
-            *m_bulletMesh,
-            *m_bulletMaterial,
-            *m_bulletMaterialInstance
-            );
+        m_asteroidModel = std::make_unique<ObjectModel>(*this, *m_asteroidMesh, *m_objectMaterial, *m_asteroidMaterialInstance);
+        m_spaceshipModel = std::make_unique<ObjectModel>(*this, *m_spaceshipMesh, *m_objectMaterial, *m_spaceshipMaterialInstance);
+        m_skyboxModel = std::make_unique<SkyboxModel>(*this, *m_skyboxMesh, *m_skyboxMaterial, *m_skyboxMaterialInstance);
+        m_bulletModel = std::make_unique<BulletModel>(*this, *m_bulletMesh, *m_bulletMaterial, *m_bulletMaterialInstance);
+        m_light = std::make_unique<mge::Light>(*this, *m_lightQuad, *m_lightMaterial, *m_lightMaterialInstance);
         
         m_skyboxModel->makeInstance();
+
+        m_lightSystem.r_light = m_light.get();
 
         m_modelSystem.addModel("Asteroid", m_asteroidModel.get());
         m_modelSystem.addModel("Spaceship", m_spaceshipModel.get());
@@ -177,11 +144,34 @@ class Game : public mge::Engine {
         m_ecsManager.addSystem("Rigidbody", &m_rigidbodySystem);
         m_ecsManager.addSystem("Transform", &m_transformSystem);
         m_ecsManager.addSystem("Model", &m_modelSystem);
+        m_ecsManager.addSystem("Light", &m_lightSystem);
         m_ecsManager.addSystem("Collision", &m_collisionSystem);
         
         makeTemplates();
 
-        for (int i = 0; i < 8'000; i++)
+        for (int i = 0; i < 3; i++) {
+            auto sunEntity = m_ecsManager.makeEntity();
+            m_lightSystem.addComponent(sunEntity);
+            auto sunInstance = m_lightSystem.getInstance(sunEntity);
+
+            sunInstance->m_type = sunInstance->e_directional;
+
+            sunInstance->m_colour = glm::vec3 {
+                randomRangeFloat(0.f, 1.f),
+                randomRangeFloat(0.f, 1.f),
+                randomRangeFloat(0.f, 1.f)
+            };
+
+            sunInstance->m_direction = randomUnitVector();
+        }
+
+        auto ambientLight = m_ecsManager.makeEntity();
+        m_lightSystem.addComponent(ambientLight);
+        auto ambientLightInstance = m_lightSystem.getInstance(ambientLight);
+        ambientLightInstance->m_type = ambientLightInstance->e_ambient;
+        ambientLightInstance->m_colour = glm::vec3 { 0.05f };
+
+        for (int i = 0; i < 4'000; i++)
             auto entity = m_ecsManager.makeEntityFromTemplate("Asteroid");
 
         auto spaceshipEntity = m_ecsManager.makeEntityFromTemplate("Spaceship");
@@ -191,6 +181,10 @@ class Game : public mge::Engine {
         m_camera->m_up = spaceshipTransform->getUp();
 
         m_camera->setup();
+
+        m_lightMaterial->setup();
+        m_lightQuad->setup();
+        m_light->setup();
 
         m_objectMaterial->setup();
 
@@ -246,11 +240,19 @@ class Game : public mge::Engine {
             m_transformSystem.addComponent(entity);
             auto bulletRigidbody = m_rigidbodySystem.addComponent(entity);
             auto bulletCollision = m_collisionSystem.addComponent(entity);
+            // m_lightSystem.addComponent(entity);
+            // auto light = m_lightSystem.getInstance(entity);
 
             bulletRigidbody->m_physicsType = bulletRigidbody->e_dynamic;
             bulletRigidbody->m_mass = 0.001f;
 
             bulletCollision->setupSphere(1.f);
+
+            // light->m_type = light->e_point;
+            // light->m_colour = glm::vec3 { 10.f, 0.f, 0.f };
+
+            // if (m_lightSystem.r_light->getInstanceCount() > 10)
+            //     m_lightSystem.removeComponent(entity);
 
             return entity;
         });
@@ -263,18 +265,28 @@ class Game : public mge::Engine {
             m_transformSystem.addComponent(entity);
             auto collision = m_collisionSystem.addComponent(entity);
             auto rigidbody = m_rigidbodySystem.addComponent(entity);
+            m_lightSystem.addComponent(entity);
+            auto spaceshipLight = m_lightSystem.getInstance(entity);
 
             collision->setupSphere(2.f);
 
             rigidbody->m_physicsType = rigidbody->e_dynamic;
             rigidbody->m_mass = 50.f;
 
+            spaceshipLight->m_colour = glm::vec3 { 2'000.f };
+            spaceshipLight->m_type = spaceshipLight->e_spot;
+            spaceshipLight->m_angle = glm::radians(15.f);
+
             return entity;
         });
     }
 
-    void recordDrawCommands(vk::CommandBuffer cmd) override {
+    void recordGBufferDrawCommands(vk::CommandBuffer cmd) override {
         m_camera->updateBuffer();
+        m_spaceshipModel->updateInstanceBuffer();
+        m_skyboxModel->updateInstanceBuffer();
+        m_bulletModel->updateInstanceBuffer();
+        m_asteroidModel->updateInstanceBuffer();
 
         m_skyboxMaterial->bindUniform(cmd, *m_camera);
         m_skyboxModel->drawInstances(cmd);
@@ -287,6 +299,13 @@ class Game : public mge::Engine {
 
         m_bulletMaterial->bindUniform(cmd, *m_camera);
         m_bulletModel->drawInstances(cmd);
+    }
+
+    void recordLightingDrawCommands(vk::CommandBuffer cmd) override {
+        m_light->updateInstanceBuffer();
+
+        m_lightMaterial->bindUniform(cmd, *m_camera);
+        m_light->drawInstances(cmd);
     }
 
     void update(double deltaTime) override {
@@ -346,20 +365,19 @@ class Game : public mge::Engine {
         m_camera->m_up = glm::mix(m_camera->m_up, cameraUp, deltaTime);
         m_camera->m_fov = glm::mix(m_camera->m_fov, targetFov, deltaTime * 0.3f);
 
-        // m_camera->m_position = glm::vec3 { 0.f, -30.f, 20.f };
-        // m_camera->m_forward = glm::vec3 { 0.f, 3.f, -2.f };
-
         m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4 { 1.f }, m_camera->m_position);
-        m_modelSystem.updateTransforms();
 
-        m_spaceshipModel->updateInstanceBuffer();
-        m_skyboxModel->updateInstanceBuffer();
-        m_bulletModel->updateInstanceBuffer();
-        m_asteroidModel->updateInstanceBuffer();
+        m_modelSystem.updateTransforms();
+        m_lightSystem.updateTransforms();
     }
 
     void end() override {
         m_camera->cleanup();
+
+        m_light->cleanup();
+        m_lightQuad->cleanup();
+        m_lightMaterialInstance->cleanup();
+        m_lightMaterial->cleanup();
 
         m_asteroidModel->cleanup();
         m_asteroidMesh->cleanup();

@@ -45,6 +45,24 @@ public:
     vk::DeviceMemory m_depthImageMemory;
     vk::ImageView m_depthImageView;
 
+    vk::Image m_albedoImage;
+    vk::DeviceMemory m_albedoImageMemory;
+    vk::ImageView m_albedoImageView;
+
+    vk::Image m_normalImage;
+    vk::DeviceMemory m_normalImageMemory;
+    vk::ImageView m_normalImageView;
+
+    vk::Image m_armImage;
+    vk::DeviceMemory m_armImageMemory;
+    vk::ImageView m_armImageView;
+
+    vk::Image m_emissiveImage;
+    vk::DeviceMemory m_emissiveImageMemory;
+    vk::ImageView m_emissiveImageView;
+
+    std::vector<vk::Framebuffer> m_gbuffers;
+
     std::vector<vk::Image> m_swapchainImages;
     std::vector<vk::ImageView> m_swapchainImageViews;
     std::vector<vk::Framebuffer> m_framebuffers;
@@ -89,6 +107,7 @@ public:
     void createSynchronisers();
     void createDepthBuffer();
     void createRenderPass();
+    void createGBuffer();
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffer();
@@ -106,7 +125,9 @@ public:
     vk::ShaderModule compileShaderModule(std::vector<uint32_t>& code);
 
     virtual void start() {}
-    virtual void recordDrawCommands(vk::CommandBuffer cmd) {}
+    virtual void recordGBufferDrawCommands(vk::CommandBuffer cmd) {}
+    virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
+    virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}
 
     virtual void physicsUpdate(double deltaTime) {
         

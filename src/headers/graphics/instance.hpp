@@ -42,25 +42,25 @@ struct ModelTransformMeshInstance : public MeshInstanceBase {
         return std::vector<vk::VertexInputAttributeDescription> {
             vk::VertexInputAttributeDescription {}
                 .setBinding(1)
-                .setLocation(firstAvailableLocation)
+                .setLocation(firstAvailableLocation++)
                 .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 0 * sizeof(glm::vec4))
                 .setFormat(vk::Format::eR32G32B32A32Sfloat)
                 ,
             vk::VertexInputAttributeDescription {}
                 .setBinding(1)
-                .setLocation(firstAvailableLocation + 1)
+                .setLocation(firstAvailableLocation++)
                 .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 1 * sizeof(glm::vec4))
                 .setFormat(vk::Format::eR32G32B32A32Sfloat)
                 ,
             vk::VertexInputAttributeDescription {}
                 .setBinding(1)
-                .setLocation(firstAvailableLocation + 2)
+                .setLocation(firstAvailableLocation++)
                 .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 2 * sizeof(glm::vec4))
                 .setFormat(vk::Format::eR32G32B32A32Sfloat)
                 ,
             vk::VertexInputAttributeDescription {}
                 .setBinding(1)
-                .setLocation(firstAvailableLocation + 3)
+                .setLocation(firstAvailableLocation++)
                 .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 3 * sizeof(glm::vec4))
                 .setFormat(vk::Format::eR32G32B32A32Sfloat)
                 ,

@@ -19,7 +19,7 @@ void main() {
     vec4 worldpos = modelTransform * position;
     v_worldpos = worldpos.xyz / worldpos.w;
 
-    v_normal = normalize((modelTransform * vec4(normal, 0.0)).xyz);
+    v_normal = normalize(-(modelTransform * vec4(normal, 0.0)).xyz);
 
     v_texcoord = texcoord;
     camPos = (inverse(camera.view) * vec4(0, 0, 0, 1)).xyz;

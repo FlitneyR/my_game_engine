@@ -72,6 +72,8 @@ public:
         m_meshInstances.erase(instanceID);
     }
 
+    uint32_t getInstanceCount() { return m_meshInstances.size(); }
+
     void drawInstances(vk::CommandBuffer cmd) override;
     void drawInstances(vk::CommandBuffer cmd, int index);
 };

@@ -7,6 +7,34 @@ namespace mge {
 
 class VertexBase {};
 
+class PointVertex : public VertexBase {
+    glm::vec3 m_position;
+
+public:
+    PointVertex(glm::vec3 position) : m_position(position) {}
+
+    static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes() {
+        return std::vector<vk::VertexInputAttributeDescription> {
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(0)
+                .setOffset(offsetof(PointVertex, m_position))
+                .setFormat(vk::Format::eR32G32B32Sfloat)
+                ,
+        };
+    }
+
+    static constexpr std::vector<vk::VertexInputBindingDescription> getBindings() {
+        return std::vector<vk::VertexInputBindingDescription> {
+            vk::VertexInputBindingDescription {}
+                .setBinding(0)
+                .setInputRate(vk::VertexInputRate::eVertex)
+                .setStride(sizeof(PointVertex))
+                ,
+        };
+    }
+};
+
 class PointColorVertex : public VertexBase {
     glm::vec3 m_position;
     glm::vec4 m_colour;

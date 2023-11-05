@@ -52,7 +52,7 @@ public:
 
 class BulletSystem : public mge::ecs::System<BulletComponent> {
 public:
-    static constexpr float MAX_AGE = 5.f;
+    static constexpr float MAX_AGE = 1.f;
 
     void destroyOldBullets(float deltaTime) {
         std::vector<mge::ecs::Entity> entitiesToDestroy;
@@ -67,14 +67,27 @@ public:
 
     void handleCollisions(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisionEvents) {
         auto asteroidSystem = r_ecsManager->getSystem<AsteroidComponent>("Asteroid");
+        auto transformSystem = r_ecsManager->getSystem<mge::ecs::TransformComponent>("Transform");
+        auto collisionSystem = r_ecsManager->getSystem<mge::ecs::CollisionComponent>("Collision");
 
         std::vector<mge::ecs::Entity> entitiesToDestroy;
 
         for (const auto& collisionEvent : collisionEvents)
         if (getComponent(collisionEvent.m_thisEntity))
-        if (asteroidSystem->getComponent(collisionEvent.m_otherEntity)) {
+        if (auto hitAsteroid = asteroidSystem->getComponent(collisionEvent.m_otherEntity)) {
             entitiesToDestroy.push_back(collisionEvent.m_thisEntity);
             entitiesToDestroy.push_back(collisionEvent.m_otherEntity);
+
+            auto oldCollision = collisionSystem->getComponent(hitAsteroid->m_entity);
+            float radius = oldCollision->m_shapeParameters.u_sphereParameters.m_radius;
+
+            float ratio = mge::Engine::randomRangeFloat(0.2f, 0.8f);
+            auto breakAxis = mge::Engine::randomUnitVector();
+
+            for (int i = -1; i <= 1; i += 2) {
+                
+                auto newEntity = r_ecsManager->makeEntityFromTemplate("Asteroid");
+            }
         }
 
         for (auto& entity : entitiesToDestroy) r_ecsManager->destroyEntity(entity);

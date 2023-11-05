@@ -35,7 +35,6 @@ public:
 
     TransformComponent* r_transform;
 
-private:
     Shape m_shape;
     ShapeParameters m_shapeParameters;
 

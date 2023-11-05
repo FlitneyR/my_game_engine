@@ -42,6 +42,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     createSynchronisers();
     createDepthBuffer();
     createRenderPass();
+    createGBuffer();
     createFramebuffers();
     createCommandPool();
     createCommandBuffer();
@@ -254,7 +255,7 @@ void Engine::createSwapchain() {
         .setImageExtent(surfaceCaps.currentExtent)
         .setImageFormat(surfaceFormat.format)
         .setImageSharingMode(vk::SharingMode::eExclusive)
-        .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment)
+        .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst)
         .setMinImageCount(std::min(surfaceCaps.minImageCount + 1, surfaceCaps.maxImageCount))
         .setPresentMode(vk::PresentModeKHR::eMailbox)
         .setSurface(m_surface)
@@ -320,12 +321,29 @@ void Engine::rebuildSwapchain() {
     m_device.destroyImageView(m_depthImageView);
     m_device.freeMemory(m_depthImageMemory);
 
+    m_device.destroyImage(m_albedoImage);
+    m_device.destroyImageView(m_albedoImageView);
+    m_device.freeMemory(m_albedoImageMemory);
+
+    m_device.destroyImage(m_normalImage);
+    m_device.destroyImageView(m_normalImageView);
+    m_device.freeMemory(m_normalImageMemory);
+
+    m_device.destroyImage(m_armImage);
+    m_device.destroyImageView(m_armImageView);
+    m_device.freeMemory(m_armImageMemory);
+
+    m_device.destroyImage(m_emissiveImage);
+    m_device.destroyImageView(m_emissiveImageView);
+    m_device.freeMemory(m_emissiveImageMemory);
+
     m_device.destroySwapchainKHR(m_swapchain);
     for (auto& imageView : m_swapchainImageViews) m_device.destroyImageView(imageView);
     for (auto& framebuffer : m_framebuffers) m_device.destroyFramebuffer(framebuffer);
 
     createSwapchain();
     createDepthBuffer();
+    createGBuffer();
     createFramebuffers();
 }
 
@@ -374,7 +392,7 @@ void Engine::createDepthBuffer() {
         .setSamples(vk::SampleCountFlagBits::e1)
         .setSharingMode(vk::SharingMode::eExclusive)
         .setTiling(vk::ImageTiling::eOptimal)
-        .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment)
+        .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment)
         ;
 
     m_depthImage = m_device.createImage(bufferCreateInfo);
@@ -431,11 +449,100 @@ void Engine::createRenderPass() {
         .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
+
+    auto albedoTarget = vk::AttachmentDescription {}
+        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        ;
+
+    auto normalTarget = vk::AttachmentDescription {}
+        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFormat(vk::Format::eR16G16B16A16Snorm)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        ;
+
+    auto armTarget = vk::AttachmentDescription {}
+        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFormat(vk::Format::eR8G8B8A8Unorm)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        ;
+
+    auto emissiveTarget = vk::AttachmentDescription {}
+        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+        ;
     
-    std::vector<vk::AttachmentDescription> attachments { renderTarget, depthTarget };
+    std::vector<vk::AttachmentDescription> attachments {
+        renderTarget,
+        depthTarget,
+        albedoTarget,
+        normalTarget,
+        armTarget,
+        emissiveTarget
+        };
+
+    auto gBufferAttachments = std::vector<vk::AttachmentReference> {
+        vk::AttachmentReference {}
+            .setAttachment(2)
+            .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(3)
+            .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(4)
+            .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(5)
+            .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            ,
+        };
+    
+    auto lightingAttachments = std::vector<vk::AttachmentReference> {
+        vk::AttachmentReference {}
+            .setAttachment(1)
+            .setLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(2)
+            .setLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(3)
+            .setLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(4)
+            .setLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            ,
+    };
     
     auto renderAttachment = vk::AttachmentReference {}
-        .setAttachment(0)
+        .setAttachment(5)
         .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
         ;
     
@@ -444,16 +551,21 @@ void Engine::createRenderPass() {
         .setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
         ;
 
-    std::vector<vk::SubpassDescription> subpass = {
+    std::vector<vk::SubpassDescription> subpasses = {
         vk::SubpassDescription {}
-            .setColorAttachments(renderAttachment)
+            .setColorAttachments(gBufferAttachments)
             .setPDepthStencilAttachment(&depthAttachment)
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+            ,
+        vk::SubpassDescription {}
+            .setColorAttachments(renderAttachment)
+            .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+            .setInputAttachments(lightingAttachments)
             ,
         };
     
     std::vector<vk::SubpassDependency> dependencies {
-        vk::SubpassDependency {}
+        vk::SubpassDependency {} // prepare depth stencil for writing
             .setSrcSubpass(VK_SUBPASS_EXTERNAL)
             .setDstSubpass(0)
             .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput
@@ -463,18 +575,29 @@ void Engine::createRenderPass() {
             .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite
                             | vk::AccessFlagBits::eDepthStencilAttachmentWrite)
             ,
-        vk::SubpassDependency {}
+        vk::SubpassDependency {} // prepare model textures for reading
             .setSrcSubpass(0)
             .setDstSubpass(0)
             .setSrcStageMask(vk::PipelineStageFlagBits::eTopOfPipe)
             .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             ,
+        vk::SubpassDependency {} // prepare gbuffer for reading
+            .setSrcSubpass(0)
+            .setDstSubpass(1)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput
+                           | vk::PipelineStageFlagBits::eEarlyFragmentTests)
+            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite
+                            | vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+            ,
     };
 
     auto createInfo = vk::RenderPassCreateInfo {}
         .setAttachments(attachments)
-        .setSubpasses(subpass)
+        .setSubpasses(subpasses)
         .setDependencies(dependencies)
         ;
     
@@ -496,6 +619,73 @@ vk::ShaderModule Engine::compileShaderModule(std::vector<uint32_t>& code) {
     return m_device.createShaderModule(createInfo);
 }
 
+void Engine::createGBuffer() {
+    // create images
+    auto imageCreateInfo = vk::ImageCreateInfo {}
+        .setArrayLayers(1)
+        .setExtent(vk::Extent3D { m_swapchainExtent, 1 })
+        .setImageType(vk::ImageType::e2D)
+        .setInitialLayout(vk::ImageLayout::eUndefined)
+        .setMipLevels(1)
+        .setQueueFamilyIndices(*m_queueFamilies.graphicsFamily)
+        .setSamples(vk::SampleCountFlagBits::e1)
+        .setSharingMode(vk::SharingMode::eExclusive)
+        .setTiling(vk::ImageTiling::eOptimal)
+        .setUsage(vk::ImageUsageFlagBits::eColorAttachment
+                // | vk::ImageUsageFlagBits::eTransientAttachment
+                | vk::ImageUsageFlagBits::eInputAttachment)
+        ;
+
+    m_albedoImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR8G8B8A8Srgb));
+    m_normalImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR16G16B16A16Snorm));
+    m_armImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR8G8B8A8Unorm));
+    m_emissiveImage = m_device.createImage(imageCreateInfo
+        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setUsage(imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferSrc));
+
+    auto imageViewCreateInfo = vk::ImageViewCreateInfo {}
+        .setSubresourceRange(vk::ImageSubresourceRange {
+            vk::ImageAspectFlagBits::eColor,
+            0, 1,
+            0, 1
+        })
+        .setViewType(vk::ImageViewType::e2D)
+        ;
+
+    std::vector<vk::Image*> images { &m_albedoImage, &m_normalImage, &m_armImage, &m_emissiveImage };
+    std::vector<vk::DeviceMemory*> memory { &m_albedoImageMemory, &m_normalImageMemory, &m_armImageMemory, &m_emissiveImageMemory };
+
+    for (int i = 0; i < images.size(); i++) {
+        auto memreqs = m_device.getImageMemoryRequirements(*images[i]);
+        auto properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+
+        auto allocateInfo = vk::MemoryAllocateInfo {}
+            .setAllocationSize(memreqs.size)
+            .setMemoryTypeIndex(findMemoryType(memreqs.memoryTypeBits, properties))
+            ;
+
+        *memory[i] = m_device.allocateMemory(allocateInfo);
+
+        m_device.bindImageMemory(*images[i], *memory[i], 0);
+    }
+
+    m_albedoImageView = m_device.createImageView(imageViewCreateInfo
+        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setImage(m_albedoImage));
+
+    m_normalImageView = m_device.createImageView(imageViewCreateInfo
+        .setImage(m_normalImage)
+        .setFormat(vk::Format::eR16G16B16A16Snorm));
+
+    m_armImageView = m_device.createImageView(imageViewCreateInfo
+        .setImage(m_armImage)
+        .setFormat(vk::Format::eR8G8B8A8Unorm));
+
+    m_emissiveImageView = m_device.createImageView(imageViewCreateInfo
+        .setImage(m_emissiveImage)
+        .setFormat(vk::Format::eR8G8B8A8Srgb));
+}
+
 void Engine::createFramebuffers() {
     auto createInfo = vk::FramebufferCreateInfo {}
         .setWidth(m_swapchainExtent.width)
@@ -509,7 +699,12 @@ void Engine::createFramebuffers() {
 
     for (int i = 0; i < m_framebuffers.size(); i++) {
         std::vector<vk::ImageView> attachments {
-            m_swapchainImageViews[i], m_depthImageView
+            m_swapchainImageViews[i],
+            m_depthImageView,
+            m_albedoImageView,
+            m_normalImageView,
+            m_armImageView,
+            m_emissiveImageView
         };
 
         createInfo.setAttachments(attachments);
@@ -587,11 +782,24 @@ void Engine::draw() {
     cmd.setScissor(0, scissor);
 
     std::vector<vk::ClearValue> clearValues {
-        vk::ClearValue {}
+        vk::ClearValue {} // final colour
             .setColor({ 0.f, 0.f, 0.f, 1.f })
             ,
-        vk::ClearValue {}
+        vk::ClearValue {} // depth
             .setDepthStencil({ 1.0f, 0 })
+            ,
+        vk::ClearValue {} // albedo
+            .setColor({ 0.f, 0.f, 0.f, 1.f })
+            ,
+        vk::ClearValue {} // normal
+            .setColor({ 0.f, 0.f, 1.f, 1.f })
+            ,
+        vk::ClearValue {} // arm 
+            .setColor({ 0.f, 0.f, 0.f, 1.f })
+            ,
+        vk::ClearValue {} // emissive
+            .setColor({ 0.f, 0.f, 0.f, 1.f })
+            ,
     };
 
     auto renderPassBeginInfo = vk::RenderPassBeginInfo {}
@@ -603,9 +811,91 @@ void Engine::draw() {
 
     cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-    recordDrawCommands(cmd);
+    recordGBufferDrawCommands(cmd);
+    cmd.nextSubpass(vk::SubpassContents::eInline);
+    recordLightingDrawCommands(cmd);
 
     cmd.endRenderPass();
+
+    auto imageBarrier = vk::ImageMemoryBarrier {}
+        .setSrcQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        .setDstQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        .setSubresourceRange(vk::ImageSubresourceRange {
+            vk::ImageAspectFlagBits::eColor,
+            0, 1,
+            0, 1
+        })
+        ;
+
+    std::vector<vk::ImageMemoryBarrier> imageBarriers {
+        imageBarrier
+            .setImage(m_emissiveImage)
+            .setOldLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
+            ,
+        imageBarrier
+            .setImage(m_swapchainImages[imageIndex])
+            .setOldLayout(vk::ImageLayout::ePresentSrcKHR)
+            .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setSrcAccessMask({})
+            .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
+            ,
+    };
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::DependencyFlagBits::eByRegion,
+        {}, {}, imageBarriers);
+
+    auto region = vk::ImageBlit {}
+        .setSrcSubresource(vk::ImageSubresourceLayers {
+            vk::ImageAspectFlagBits::eColor,
+            0, 0, 1
+        })
+        .setSrcOffsets({
+            vk::Offset3D { 0, 0, 0 },
+            vk::Offset3D {
+                static_cast<int32_t>(m_swapchainExtent.width),
+                static_cast<int32_t>(m_swapchainExtent.height),
+                1
+            },
+        })
+        .setDstSubresource(vk::ImageSubresourceLayers {
+            vk::ImageAspectFlagBits::eColor,
+            0, 0, 1
+        })
+        .setDstOffsets({
+            vk::Offset3D { 0, 0, 0 },
+            vk::Offset3D {
+                static_cast<int32_t>(m_swapchainExtent.width),
+                static_cast<int32_t>(m_swapchainExtent.height),
+                1
+            },
+        })
+        ;
+
+    cmd.blitImage(
+        m_emissiveImage, vk::ImageLayout::eTransferSrcOptimal,
+        m_swapchainImages[imageIndex], vk::ImageLayout::eTransferDstOptimal,
+        region, vk::Filter::eLinear
+    );
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eBottomOfPipe,
+        vk::DependencyFlagBits::eByRegion,
+        {}, {},
+        imageBarrier
+            .setImage(m_swapchainImages[imageIndex])
+            .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
+            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setDstAccessMask({})
+        );
+
     cmd.end();
 
     vk::Queue graphicsQueue = m_device.getQueue(*m_queueFamilies.graphicsFamily, 0);
@@ -643,6 +933,22 @@ void Engine::cleanup() {
     m_device.destroyImage(m_depthImage);
     m_device.destroyImageView(m_depthImageView);
     m_device.freeMemory(m_depthImageMemory);
+
+    m_device.destroyImage(m_albedoImage);
+    m_device.destroyImageView(m_albedoImageView);
+    m_device.freeMemory(m_albedoImageMemory);
+
+    m_device.destroyImage(m_normalImage);
+    m_device.destroyImageView(m_normalImageView);
+    m_device.freeMemory(m_normalImageMemory);
+
+    m_device.destroyImage(m_armImage);
+    m_device.destroyImageView(m_armImageView);
+    m_device.freeMemory(m_armImageMemory);
+
+    m_device.destroyImage(m_emissiveImage);
+    m_device.destroyImageView(m_emissiveImageView);
+    m_device.freeMemory(m_emissiveImageMemory);
 
     m_device.destroyCommandPool(m_commandPool);
 
