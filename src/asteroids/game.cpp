@@ -240,16 +240,16 @@ class Game : public mge::Engine {
             m_transformSystem.addComponent(entity);
             auto bulletRigidbody = m_rigidbodySystem.addComponent(entity);
             auto bulletCollision = m_collisionSystem.addComponent(entity);
-            // m_lightSystem.addComponent(entity);
-            // auto light = m_lightSystem.getInstance(entity);
+            m_lightSystem.addComponent(entity);
+            auto light = m_lightSystem.getInstance(entity);
 
             bulletRigidbody->m_physicsType = bulletRigidbody->e_dynamic;
             bulletRigidbody->m_mass = 0.001f;
 
             bulletCollision->setupSphere(1.f);
 
-            // light->m_type = light->e_point;
-            // light->m_colour = glm::vec3 { 10.f, 0.f, 0.f };
+            light->m_type = light->e_point;
+            light->m_colour = glm::vec3 { 100.f, 0.f, 0.f };
 
             // if (m_lightSystem.r_light->getInstanceCount() > 10)
             //     m_lightSystem.removeComponent(entity);

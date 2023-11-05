@@ -17,7 +17,7 @@ public:
     static const std::vector<std::string> s_requiredInstanceExtensions;
     static const std::vector<std::string> s_requiredDeviceExtensions;
 
-    virtual constexpr int getMaxFramesInFlight() { return 2; }
+    virtual constexpr int getMaxFramesInFlight() { return 3; }
     int m_currentInFlightFrame = 0;
 
     std::chrono::high_resolution_clock::time_point m_startTime, m_lastFrameTime;
@@ -61,6 +61,9 @@ public:
     vk::DeviceMemory m_emissiveImageMemory;
     vk::ImageView m_emissiveImageView;
 
+    vk::DescriptorPool m_gbufferDescriptorPool;
+    vk::DescriptorSetLayout m_gbufferDescriptorSetLayout;
+    vk::DescriptorSet m_gbufferDescriptorSet;
     std::vector<vk::Framebuffer> m_gbuffers;
 
     std::vector<vk::Image> m_swapchainImages;
@@ -107,7 +110,9 @@ public:
     void createSynchronisers();
     void createDepthBuffer();
     void createRenderPass();
+    void createGBufferDescriptorSetLayout();
     void createGBuffer();
+    void createGBufferDescriptorSet();
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffer();

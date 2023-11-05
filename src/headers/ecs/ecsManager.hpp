@@ -28,10 +28,6 @@ public:
         m_systems[name] = system;
     }
 
-    // SystemBase* getSystem(const std::string& name) {
-    //     return m_systems.at(name);
-    // }
-
     template<typename Component>
     System<Component>* getSystem(const std::string& name) {
         return static_cast<System<Component>*>(m_systems.at(name));

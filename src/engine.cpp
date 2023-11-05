@@ -42,6 +42,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     createSynchronisers();
     createDepthBuffer();
     createRenderPass();
+    createGBufferDescriptorSetLayout();
     createGBuffer();
     createFramebuffers();
     createCommandPool();
@@ -337,6 +338,8 @@ void Engine::rebuildSwapchain() {
     m_device.destroyImageView(m_emissiveImageView);
     m_device.freeMemory(m_emissiveImageMemory);
 
+    m_device.destroyDescriptorPool(m_gbufferDescriptorPool);
+
     m_device.destroySwapchainKHR(m_swapchain);
     for (auto& imageView : m_swapchainImageViews) m_device.destroyImageView(imageView);
     for (auto& framebuffer : m_framebuffers) m_device.destroyFramebuffer(framebuffer);
@@ -619,6 +622,27 @@ vk::ShaderModule Engine::compileShaderModule(std::vector<uint32_t>& code) {
     return m_device.createShaderModule(createInfo);
 }
 
+void Engine::createGBufferDescriptorSetLayout() {
+    auto binding = vk::DescriptorSetLayoutBinding {}
+        .setDescriptorCount(1)
+        .setDescriptorType(vk::DescriptorType::eInputAttachment)
+        .setStageFlags(vk::ShaderStageFlagBits::eFragment)
+        ;
+    
+    std::vector<vk::DescriptorSetLayoutBinding> bindings {
+        binding.setBinding(0),
+        binding.setBinding(1),
+        binding.setBinding(2),
+        binding.setBinding(3),
+    };
+
+    auto createInfo = vk::DescriptorSetLayoutCreateInfo {}
+        .setBindings(bindings)
+        ;
+    
+    m_gbufferDescriptorSetLayout = m_device.createDescriptorSetLayout(createInfo);
+}
+
 void Engine::createGBuffer() {
     // create images
     auto imageCreateInfo = vk::ImageCreateInfo {}
@@ -684,6 +708,53 @@ void Engine::createGBuffer() {
     m_emissiveImageView = m_device.createImageView(imageViewCreateInfo
         .setImage(m_emissiveImage)
         .setFormat(vk::Format::eR8G8B8A8Srgb));
+    
+    createGBufferDescriptorSet();
+}
+
+void Engine::createGBufferDescriptorSet() {
+    auto poolSize = vk::DescriptorPoolSize {}
+        .setDescriptorCount(4)
+        .setType(vk::DescriptorType::eInputAttachment)
+        ;
+
+    auto poolCreateInfo = vk::DescriptorPoolCreateInfo {}
+        .setMaxSets(1)
+        .setPoolSizes(poolSize)
+        ;
+
+    m_gbufferDescriptorPool = m_device.createDescriptorPool(poolCreateInfo);
+
+    auto allocInfo = vk::DescriptorSetAllocateInfo {}
+        .setDescriptorPool(m_gbufferDescriptorPool)
+        .setDescriptorSetCount(1)
+        .setSetLayouts(m_gbufferDescriptorSetLayout)
+        ;
+
+    m_gbufferDescriptorSet = m_device.allocateDescriptorSets(allocInfo)[0];
+
+    auto imageInfo = vk::DescriptorImageInfo {}
+        .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(nullptr)
+        ;
+
+    auto imageInfos = std::vector<vk::DescriptorImageInfo> {
+        imageInfo.setImageView(m_depthImageView),
+        imageInfo.setImageView(m_albedoImageView),
+        imageInfo.setImageView(m_normalImageView),
+        imageInfo.setImageView(m_armImageView),
+    };
+
+    auto descriptorSetWrite = vk::WriteDescriptorSet {}
+        .setDescriptorCount(1)
+        .setDescriptorType(vk::DescriptorType::eInputAttachment)
+        .setDstArrayElement(0)
+        .setDstBinding(0)
+        .setDstSet(m_gbufferDescriptorSet)
+        .setImageInfo(imageInfos)
+        ;
+
+    m_device.updateDescriptorSets(descriptorSetWrite, nullptr);
 }
 
 void Engine::createFramebuffers() {
@@ -949,6 +1020,9 @@ void Engine::cleanup() {
     m_device.destroyImage(m_emissiveImage);
     m_device.destroyImageView(m_emissiveImageView);
     m_device.freeMemory(m_emissiveImageMemory);
+
+    m_device.destroyDescriptorSetLayout(m_gbufferDescriptorSetLayout);
+    m_device.destroyDescriptorPool(m_gbufferDescriptorPool);
 
     m_device.destroyCommandPool(m_commandPool);
 

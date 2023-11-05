@@ -74,73 +74,15 @@ public:
 };
 
 class LightMaterial : public Material<PointVertex, LightInstance, SimpleMaterialInstance, Camera> {
-    vk::DescriptorPool m_descriptorPool;
-    vk::DescriptorSet m_descriptorSet;
-
 public:
     LightMaterial(Engine& engine, vk::ShaderModule vertexShader, vk::ShaderModule fragmentShader) :
         Material(engine, vertexShader, fragmentShader)
     {}
 
-    void setup() override {
-        Material<PointVertex, LightInstance, SimpleMaterialInstance, Camera>::setup();
-
-        auto poolSize = vk::DescriptorPoolSize {}
-            .setDescriptorCount(4)
-            .setType(vk::DescriptorType::eInputAttachment)
-            ;
-
-        auto poolCreateInfo = vk::DescriptorPoolCreateInfo {}
-            .setMaxSets(1)
-            .setPoolSizes(poolSize)
-            ;
-
-        m_descriptorPool = r_engine.m_device.createDescriptorPool(poolCreateInfo);
-
-        auto allocInfo = vk::DescriptorSetAllocateInfo {}
-            .setDescriptorPool(m_descriptorPool)
-            .setDescriptorSetCount(1)
-            .setSetLayouts(m_descriptorSetLayouts.back())
-            ;
-
-        m_descriptorSet = r_engine.m_device.allocateDescriptorSets(allocInfo)[0];
-
-        auto imageInfo = vk::DescriptorImageInfo {}
-            .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-            .setSampler(nullptr)
-            ;
-
-        auto imageInfos = std::vector<vk::DescriptorImageInfo> {
-            imageInfo.setImageView(r_engine.m_depthImageView),
-            imageInfo.setImageView(r_engine.m_albedoImageView),
-            imageInfo.setImageView(r_engine.m_normalImageView),
-            imageInfo.setImageView(r_engine.m_armImageView),
-        };
-
-        auto descriptorSetWrite = vk::WriteDescriptorSet {}
-            .setDescriptorCount(1)
-            .setDescriptorType(vk::DescriptorType::eInputAttachment)
-            .setDstArrayElement(0)
-            .setDstBinding(0)
-            .setDstSet(m_descriptorSet)
-            .setImageInfo(imageInfos)
-            ;
-
-        r_engine.m_device.updateDescriptorSets(descriptorSetWrite, nullptr);
-    }
-
-    void cleanup() override {
-        Material<PointVertex, LightInstance, SimpleMaterialInstance, Camera>::cleanup();
-
-        r_engine.m_device.destroyDescriptorSetLayout(m_descriptorSetLayouts.back());
-
-        r_engine.m_device.destroyDescriptorPool(m_descriptorPool);
-    }
-
     void bindPipeline(vk::CommandBuffer cmd) override {
         Material<PointVertex, LightInstance, SimpleMaterialInstance, Camera>::bindPipeline(cmd);
         std::vector<uint32_t> offsets;
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 1, m_descriptorSet, offsets);
+        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 1, r_engine.m_gbufferDescriptorSet, offsets);
     }
 
 protected:
@@ -179,26 +121,7 @@ protected:
     void createDescriptorSetLayouts() override {
         Material<PointVertex, LightInstance, SimpleMaterialInstance, Camera>::createDescriptorSetLayouts();
 
-        auto binding = vk::DescriptorSetLayoutBinding {}
-            .setDescriptorCount(1)
-            .setDescriptorType(vk::DescriptorType::eInputAttachment)
-            .setStageFlags(vk::ShaderStageFlagBits::eFragment)
-            ;
-        
-        std::vector<vk::DescriptorSetLayoutBinding> bindings {
-            binding.setBinding(0),
-            binding.setBinding(1),
-            binding.setBinding(2),
-            binding.setBinding(3),
-        };
-
-        auto createInfo = vk::DescriptorSetLayoutCreateInfo {}
-            .setBindings(bindings)
-            ;
-        
-        m_descriptorSetLayouts.push_back(
-            r_engine.m_device.createDescriptorSetLayout(createInfo)
-        );
+        m_descriptorSetLayouts.push_back(r_engine.m_gbufferDescriptorSetLayout);
     }
 
     uint32_t getSubpassIndex() override { return 1; }

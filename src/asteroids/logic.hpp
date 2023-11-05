@@ -38,14 +38,55 @@ public:
             glm::vec3 asteroidPosition = asteroidTransform->getPosition();
             glm::vec3 relpos = asteroidPosition - spaceshipPosition; // asteroid relative position
             
-            if (relpos.x > MAX_DISTANCE) relpos.x -= 2.f * MAX_DISTANCE;
+            if (relpos.x >  MAX_DISTANCE) relpos.x -= 2.f * MAX_DISTANCE;
             if (relpos.x < -MAX_DISTANCE) relpos.x += 2.f * MAX_DISTANCE;
-            if (relpos.y > MAX_DISTANCE) relpos.y -= 2.f * MAX_DISTANCE;
+            if (relpos.y >  MAX_DISTANCE) relpos.y -= 2.f * MAX_DISTANCE;
             if (relpos.y < -MAX_DISTANCE) relpos.y += 2.f * MAX_DISTANCE;
-            if (relpos.z > MAX_DISTANCE) relpos.z -= 2.f * MAX_DISTANCE;
+            if (relpos.z >  MAX_DISTANCE) relpos.z -= 2.f * MAX_DISTANCE;
             if (relpos.z < -MAX_DISTANCE) relpos.z += 2.f * MAX_DISTANCE;
 
             asteroidTransform->setPosition(spaceshipPosition + relpos);
+        }
+    }
+
+    void breakApart(const mge::ecs::Entity& entity) {
+        auto transformSystem = r_ecsManager->getSystem<mge::ecs::TransformComponent>("Transform");
+        auto collisionSystem = r_ecsManager->getSystem<mge::ecs::CollisionComponent>("Collision");
+        auto rigidbodySystem = r_ecsManager->getSystem<mge::ecs::RigidbodyComponent>("Rigidbody");
+
+        auto asteroid = getComponent(entity);
+        auto oldTransform = transformSystem->getComponent(entity);
+        auto oldRigidbody = rigidbodySystem->getComponent(entity);
+        auto oldCollision = collisionSystem->getComponent(entity);
+
+        float radius = oldCollision->m_shapeParameters.u_sphereParameters.m_radius;
+
+        if (radius <= 3.f) return;
+
+        float ratio = mge::Engine::randomRangeFloat(0.2f, 0.8f);
+        auto breakAxis = mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(10.f, 50.f);
+
+        for (float i = -1.f; i <= 1.f; i += 2.f) {
+            float newRadius = 0.5f * radius;
+
+            auto newEntity = r_ecsManager->makeEntityFromTemplate("Asteroid");
+
+            auto transform = transformSystem->getComponent(newEntity);
+            auto collision = collisionSystem->getComponent(newEntity);
+            auto rigidbody = rigidbodySystem->getComponent(newEntity);
+
+            transform->setPosition(oldTransform->getPosition() + glm::normalize(breakAxis) * i * newRadius);
+            transform->setScale(glm::vec3 { newRadius });
+
+            collision->setupSphere(newRadius);
+            
+            rigidbody->m_velocity = oldRigidbody->m_velocity;
+            rigidbody->m_velocity += breakAxis * i;
+
+            rigidbody->m_angularVelocity = oldRigidbody->m_angularVelocity;
+            rigidbody->m_angularVelocity += mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(3.f, 10.f);
+
+            rigidbody->m_mass = newRadius * newRadius * newRadius;
         }
     }
 };
@@ -66,9 +107,7 @@ public:
     }
 
     void handleCollisions(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisionEvents) {
-        auto asteroidSystem = r_ecsManager->getSystem<AsteroidComponent>("Asteroid");
-        auto transformSystem = r_ecsManager->getSystem<mge::ecs::TransformComponent>("Transform");
-        auto collisionSystem = r_ecsManager->getSystem<mge::ecs::CollisionComponent>("Collision");
+        auto asteroidSystem = static_cast<AsteroidSystem*>(r_ecsManager->getSystem<AsteroidComponent>("Asteroid"));
 
         std::vector<mge::ecs::Entity> entitiesToDestroy;
 
@@ -78,16 +117,7 @@ public:
             entitiesToDestroy.push_back(collisionEvent.m_thisEntity);
             entitiesToDestroy.push_back(collisionEvent.m_otherEntity);
 
-            auto oldCollision = collisionSystem->getComponent(hitAsteroid->m_entity);
-            float radius = oldCollision->m_shapeParameters.u_sphereParameters.m_radius;
-
-            float ratio = mge::Engine::randomRangeFloat(0.2f, 0.8f);
-            auto breakAxis = mge::Engine::randomUnitVector();
-
-            for (int i = -1; i <= 1; i += 2) {
-                
-                auto newEntity = r_ecsManager->makeEntityFromTemplate("Asteroid");
-            }
+            asteroidSystem->breakApart(hitAsteroid->m_entity);
         }
 
         for (auto& entity : entitiesToDestroy) r_ecsManager->destroyEntity(entity);
@@ -99,7 +129,7 @@ public:
     constexpr static float PITCH_RATE = 0.75f * glm::pi<float>();
     constexpr static float TURN_RATE = 0.75f * glm::pi<float>();
     constexpr static float ACCELERATION_RATE = 25.f;
-    constexpr static float RATE_OF_FIRE = 0.05f;
+    constexpr static float RATE_OF_FIRE = 0.25f;
 
     void checkForAsteroidCollision(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisions) {
         auto asteroidSystem = r_ecsManager->getSystem<AsteroidComponent>("Asteroid");
