@@ -6,6 +6,7 @@
 #include <collision.hpp>
 #include <component.hpp>
 #include <system.hpp>
+#include <ecsManager.hpp>
 
 namespace mge::ecs {
 
@@ -24,11 +25,11 @@ public:
 
 class RigidbodySystem : public System<RigidbodyComponent> {
 public:
-    System<TransformComponent>* r_transformSystem;
-
     void update(float deltaTime) {
+        auto transformSystem = r_ecsManager->getSystem<TransformComponent>("Transform");
+
         for (auto& [ entity, rigidbody ] : m_components)
-        if (auto transform = r_transformSystem->getComponent(entity)) {
+        if (auto transform = transformSystem->getComponent(entity)) {
             rigidbody.m_velocity += rigidbody.m_acceleration * deltaTime;
 
             transform->setPosition(transform->getPosition() + rigidbody.m_velocity * deltaTime);
@@ -43,6 +44,8 @@ public:
     }
 
     void resolveCollisions(std::vector<CollisionComponent::CollisionEvent> collisionEvents) {
+        auto transformSystem = r_ecsManager->getSystem<TransformComponent>("Transform");
+
         for (const auto& collisionEvent : collisionEvents)
         if (auto thisRigidBody = getComponent(collisionEvent.m_thisEntity))
         if (thisRigidBody->m_physicsType == RigidbodyComponent::e_dynamic)
@@ -52,7 +55,7 @@ public:
 
             thisRigidBody->m_velocity -= collisionEvent.m_normal * m * v * 0.75f;
             
-            auto transform = r_transformSystem->getComponent(collisionEvent.m_thisEntity);
+            auto transform = transformSystem->getComponent(collisionEvent.m_thisEntity);
 
             glm::vec3 newPosition = transform->getPosition();
 

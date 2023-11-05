@@ -68,8 +68,7 @@ class Game : public mge::Engine {
     mge::ecs::RigidbodySystem m_rigidbodySystem;
     mge::ecs::System<mge::ecs::TransformComponent> m_transformSystem;
     mge::ecs::CollisionSystem m_collisionSystem;
-
-    mge::ecs::ModelSystem m_asteroidModelSystem, m_spaceshipModelSystem, m_bulletModelSystem;
+    mge::ecs::ModelSystem m_modelSystem;
 
     std::string getGameName() override { return "Asteroids"; }
     
@@ -171,85 +170,25 @@ class Game : public mge::Engine {
         
         m_skyboxModel->makeInstance();
 
-        m_asteroidSystem.r_spaceshipSystem = &m_spaceshipSystem;
-        m_asteroidSystem.r_transformSystem = &m_transformSystem;
-        m_asteroidSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_asteroidSystem);
+        m_modelSystem.addModel("Asteroid", m_asteroidModel.get());
+        m_modelSystem.addModel("Spaceship", m_spaceshipModel.get());
+        m_modelSystem.addModel("Bullet", m_bulletModel.get());
 
-        m_bulletSystem.r_asteroidSystem = &m_asteroidSystem;
-        m_bulletSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_bulletSystem);
-
-        m_spaceshipSystem.r_asteroidSystem = &m_asteroidSystem;
-        m_spaceshipSystem.r_bulletModelSystem = &m_bulletModelSystem;
-        m_spaceshipSystem.r_bulletSystem = &m_bulletSystem;
-        m_spaceshipSystem.r_collisionSystem = &m_collisionSystem;
-        m_spaceshipSystem.r_rigidBodySystem = &m_rigidbodySystem;
-        m_spaceshipSystem.r_transformSystem = &m_transformSystem;
-        m_spaceshipSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_spaceshipSystem);
-
-        m_rigidbodySystem.r_transformSystem = &m_transformSystem;
-        m_rigidbodySystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_rigidbodySystem);
-
-        m_transformSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_transformSystem);
-
-        m_asteroidModelSystem.r_model = m_asteroidModel.get();
-        m_spaceshipModelSystem.r_model = m_spaceshipModel.get();
-        m_bulletModelSystem.r_model = m_bulletModel.get();
-
-        m_asteroidModelSystem.r_transformSystem = &m_transformSystem;
-        m_spaceshipModelSystem.r_transformSystem = &m_transformSystem;
-        m_bulletModelSystem.r_transformSystem = &m_transformSystem;
-
-        m_asteroidModelSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_asteroidModelSystem);
-        m_spaceshipModelSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_spaceshipModelSystem);
-        m_bulletModelSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_bulletModelSystem);
-
-        m_collisionSystem.r_transformSystem = &m_transformSystem;
-        m_collisionSystem.r_ecsManager = &m_ecsManager;
-        m_ecsManager.m_systems.push_back(&m_collisionSystem);
+        m_ecsManager.addSystem("Asteroid", &m_asteroidSystem);
+        m_ecsManager.addSystem("Bullet", &m_bulletSystem);
+        m_ecsManager.addSystem("Spaceship", &m_spaceshipSystem);
+        m_ecsManager.addSystem("Rigidbody", &m_rigidbodySystem);
+        m_ecsManager.addSystem("Transform", &m_transformSystem);
+        m_ecsManager.addSystem("Model", &m_modelSystem);
+        m_ecsManager.addSystem("Collision", &m_collisionSystem);
         
-        for (int i = 0; i < 8'000; i++) {
-            auto entity = m_ecsManager.makeEntity();
+        makeTemplates();
 
-            m_asteroidSystem.addComponent(entity);
-            m_asteroidModelSystem.addComponent(entity);
+        for (int i = 0; i < 8'000; i++)
+            auto entity = m_ecsManager.makeEntityFromTemplate("Asteroid");
 
-            auto collider = m_collisionSystem.addComponent(entity);
-            auto transform = m_transformSystem.addComponent(entity);
-            auto rigidbody = m_rigidbodySystem.addComponent(entity);
-
-            float radius = glm::mix(5.f, 40.f, glm::pow(randomRangeFloat(0.f, 1.f), 40.f));
-            collider->setupSphere(radius);
-
-            transform->setPosition(glm::vec3 {
-                randomRangeFloat(-1.f, 1.f),
-                randomRangeFloat(-1.f, 1.f),
-                randomRangeFloat(-1.f, 1.f)
-            } * AsteroidSystem::MAX_DISTANCE);
-            transform->setRotation(glm::angleAxis(randomRangeFloat(-glm::pi<float>(), glm::pi<float>()), randomUnitVector()));
-            transform->setScale(glm::vec3 { radius });
-
-            rigidbody->m_velocity = randomUnitVector() * randomRangeFloat(0.f, 15.f) * glm::vec3 { 1.f, 1.f, 1.f };
-            rigidbody->m_physicsType = rigidbody->e_dynamic;
-            rigidbody->m_mass = radius * radius * radius;
-            rigidbody->m_angularVelocity = randomRangeFloat(0.f, 1.f) * randomUnitVector();
-        }
-
-        auto spaceshipEntity = m_ecsManager.makeEntity();
-        m_spaceshipModelSystem.addComponent(spaceshipEntity);
-        m_spaceshipSystem.addComponent(spaceshipEntity);
-        auto spaceshipTransform = m_transformSystem.addComponent(spaceshipEntity);
-        m_collisionSystem.addComponent(spaceshipEntity)->setupSphere(2.f);
-        auto spaceshipRigidbody = m_rigidbodySystem.addComponent(spaceshipEntity);
-        spaceshipRigidbody->m_physicsType = spaceshipRigidbody->e_kinematic;
-        spaceshipRigidbody->m_mass = 200.f;
+        auto spaceshipEntity = m_ecsManager.makeEntityFromTemplate("Spaceship");
+        auto spaceshipTransform = m_transformSystem.getComponent(spaceshipEntity);
 
         m_camera->m_position = spaceshipTransform->getPosition() + spaceshipTransform->getUp();
         m_camera->m_up = spaceshipTransform->getUp();
@@ -271,6 +210,70 @@ class Game : public mge::Engine {
         m_bulletMaterial->setup();
         m_bulletMesh->setup();
         m_bulletModel->setup();
+    }
+
+    void makeTemplates() {
+        m_ecsManager.addTemplate("Asteroid", [&](mge::ecs::ECSManager& ecs) {
+            auto entity = ecs.makeEntity();
+
+            auto transform = m_transformSystem.addComponent(entity);
+            auto rigidbody = m_rigidbodySystem.addComponent(entity);
+            auto model = m_modelSystem.addComponent(entity, "Asteroid");
+            auto collider = m_collisionSystem.addComponent(entity);
+            auto asteroid = m_asteroidSystem.addComponent(entity);
+
+            float radius = glm::mix(5.f, 40.f, glm::pow(randomRangeFloat(0.f, 1.f), 40.f));
+            collider->setupSphere(radius);
+
+            transform->setPosition(glm::vec3 {
+                randomRangeFloat(-1.f, 1.f),
+                randomRangeFloat(-1.f, 1.f),
+                randomRangeFloat(-1.f, 1.f)
+            } * AsteroidSystem::MAX_DISTANCE);
+            transform->setRotation(glm::angleAxis(randomRangeFloat(-glm::pi<float>(), glm::pi<float>()), randomUnitVector()));
+            transform->setScale(glm::vec3 { radius });
+
+            rigidbody->m_velocity = randomUnitVector() * randomRangeFloat(0.f, 15.f) * glm::vec3 { 1.f, 1.f, 1.f };
+            rigidbody->m_physicsType = rigidbody->e_dynamic;
+            rigidbody->m_mass = radius * radius * radius;
+            rigidbody->m_angularVelocity = randomRangeFloat(0.f, 1.f) * randomUnitVector();
+
+            return entity;
+        });
+
+        m_ecsManager.addTemplate("Bullet", [&](mge::ecs::ECSManager& ecs) {
+            auto entity = ecs.makeEntity();
+
+            m_bulletSystem.addComponent(entity);
+            m_modelSystem.addComponent(entity, "Bullet");
+            m_transformSystem.addComponent(entity);
+            auto bulletRigidbody = m_rigidbodySystem.addComponent(entity);
+            auto bulletCollision = m_collisionSystem.addComponent(entity);
+
+            bulletRigidbody->m_physicsType = bulletRigidbody->e_dynamic;
+            bulletRigidbody->m_mass = 0.001f;
+
+            bulletCollision->setupSphere(1.f);
+
+            return entity;
+        });
+
+        m_ecsManager.addTemplate("Spaceship", [&](mge::ecs::ECSManager& ecs){
+            auto entity = ecs.makeEntity();
+
+            m_modelSystem.addComponent(entity, "Spaceship");
+            m_spaceshipSystem.addComponent(entity);
+            m_transformSystem.addComponent(entity);
+            auto collision = m_collisionSystem.addComponent(entity);
+            auto rigidbody = m_rigidbodySystem.addComponent(entity);
+
+            collision->setupSphere(2.f);
+
+            rigidbody->m_physicsType = rigidbody->e_dynamic;
+            rigidbody->m_mass = 50.f;
+
+            return entity;
+        });
     }
 
     void recordDrawCommands(vk::CommandBuffer cmd) override {
@@ -300,33 +303,22 @@ class Game : public mge::Engine {
 
         m_bulletSystem.destroyOldBullets(deltaTime);
 
-        static bool accelerate = false;
-        static bool pitchUp = false;
-        static bool pitchDown = false;
-        static bool turnLeft = false;
-        static bool turnRight = false;
-        static bool fire = false;
-        static bool fireHeld = false;
-
-        accelerate = glfwGetKey(m_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
-        pitchUp = glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS;
-        pitchDown = glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS;
-        turnLeft = glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS;
-        turnRight = glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS;
-        
-        bool fireKeyDown = glfwGetKey(m_window, GLFW_KEY_Z) == GLFW_PRESS;
-
-        fire = fireKeyDown && !fireHeld;
-        fireHeld = fireKeyDown;
+        bool accelerate = glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS;
+        bool pitchUp = glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS;
+        bool pitchDown = glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        bool turnLeft = glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS;
+        bool turnRight = glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS;
+        bool fire = glfwGetKey(m_window, GLFW_KEY_E) == GLFW_PRESS;
 
         m_spaceshipSystem.update(deltaTime, accelerate, pitchUp, pitchDown, turnLeft, turnRight, fire);
-
-        m_asteroidSystem.wrapAsteroids();
 
         auto spaceshipEntity = m_spaceshipSystem.m_components.begin()->first;
 
         auto spaceship = m_spaceshipSystem.getComponent(spaceshipEntity);
         auto spaceshipTransform = m_transformSystem.getComponent(spaceshipEntity);
+
+        if (spaceship->m_alive)
+            m_asteroidSystem.wrapAsteroids();
 
         glm::vec3 cameraTargetPosition, cameraFocus, cameraUp;
         float targetFov;
@@ -361,9 +353,7 @@ class Game : public mge::Engine {
         // m_camera->m_forward = glm::vec3 { 0.f, 3.f, -2.f };
 
         m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4 { 1.f }, m_camera->m_position);
-        m_bulletModelSystem.updateTransforms();
-        m_asteroidModelSystem.updateTransforms();
-        m_spaceshipModelSystem.updateTransforms();
+        m_modelSystem.updateTransforms();
 
         m_spaceshipModel->updateInstanceBuffer();
         m_skyboxModel->updateInstanceBuffer();

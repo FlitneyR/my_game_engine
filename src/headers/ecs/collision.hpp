@@ -3,6 +3,7 @@
 
 #include <component.hpp>
 #include <system.hpp>
+#include <ecsManager.hpp>
 #include <transform.hpp>
 #include <iostream>
 
@@ -100,12 +101,10 @@ public:
 
 class CollisionSystem : public System<CollisionComponent> {
 public:
-    System<TransformComponent>* r_transformSystem;
-
     class BSPT {
     public:
         std::unique_ptr<BSPT> m_left, m_right;
-        std::vector<CollisionComponent> m_children;
+        std::vector<CollisionComponent*> m_children;
 
         static constexpr uint32_t MAX_DEPTH = 10;
         static constexpr uint32_t MIN_CHILDREN = 10;
@@ -117,11 +116,11 @@ public:
             glm::vec3 variance, meanPosition;
 
             for (const auto& child : m_children)
-                meanPosition += child.r_transform->getPosition();
+                meanPosition += child->r_transform->getPosition();
             meanPosition /= static_cast<float>(m_children.size());
 
             for (const auto& child : m_children) {
-                glm::vec3 diff = child.r_transform->getPosition() - meanPosition;
+                glm::vec3 diff = child->r_transform->getPosition() - meanPosition;
                 variance += diff * diff;
             }
 
@@ -149,11 +148,11 @@ public:
             float distance;
             findSplitPlane(axis, distance);
 
-            for (const auto& child : m_children) {
+            for (const auto child : m_children) {
                 bool onLeft = false;
                 bool onRight = false;
                 
-                auto aabb = child.getAABB();
+                auto aabb = child->getAABB();
 
                 switch (axis) {
                 case X:
@@ -187,8 +186,8 @@ public:
                 CollisionComponent::CollisionEvent event;
                 for (auto& collider1 : m_children)
                 for (auto& collider2 : m_children)
-                if (collider1.m_entity != collider2.m_entity)
-                if (collider1.checkCollision(collider2, event))
+                if (collider1->m_entity != collider2->m_entity)
+                if (collider1->checkCollision(*collider2, event))
                     collisionEvents.push_back(event);
             } else {
                 if (m_left) m_left->generateCollisionEvents(collisionEvents);
@@ -198,10 +197,12 @@ public:
     };
 
     std::vector<CollisionComponent::CollisionEvent> getCollisionEvents() {
+        auto transformSystem = r_ecsManager->getSystem<TransformComponent>("Transform");
+
         BSPT bspt;
         for (auto& [ entity, comp ] : m_components) {
-            comp.r_transform = r_transformSystem->getComponent(entity);
-            bspt.m_children.push_back(comp);
+            comp.r_transform = transformSystem->getComponent(entity);
+            bspt.m_children.push_back(&comp);
         }
 
         bspt.split();
