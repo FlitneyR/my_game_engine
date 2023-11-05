@@ -1,13 +1,22 @@
-#include <engine.hpp>
+#ifndef SKYBOX_HPP
+#define SKYBOX_HPP
 
-class SkyboxMaterial : public mge::Material<
-    mge::ModelVertex,
-    mge::ModelTransformMeshInstance,
-    mge::NTextureMaterialInstance<1>,
-    mge::Camera
+#include <engine.hpp>
+#include <material.hpp>
+#include <vertex.hpp>
+#include <instance.hpp>
+#include <camera.hpp>
+
+namespace mge {
+
+class SkyboxMaterial : public Material<
+    ModelVertex,
+    ModelTransformMeshInstance,
+    NTextureMaterialInstance<1>,
+    Camera
 > {
 public:
-    SkyboxMaterial(mge::Engine& engine, vk::ShaderModule vertexShader, vk::ShaderModule fragmentShader) :
+    SkyboxMaterial(Engine& engine, vk::ShaderModule vertexShader, vk::ShaderModule fragmentShader) :
         Material(engine, vertexShader, fragmentShader)
     {}
 
@@ -30,3 +39,7 @@ public:
             ;
     }
 };
+
+}
+
+#endif

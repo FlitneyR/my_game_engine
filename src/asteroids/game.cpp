@@ -2,11 +2,8 @@
 #include <model.hpp>
 #include <camera.hpp>
 #include <objloader.hpp>
+#include <skybox.hpp>
 
-// #include "asteroid.hpp"
-#include "skybox.hpp"
-// #include "bullet.hpp"
-// #include "spaceship.hpp"
 #include "logic.hpp"
 #include <modelInstance.hpp>
 
@@ -54,7 +51,7 @@ class Game : public mge::Engine {
 
     std::unique_ptr<SkyboxModel> m_skyboxModel;
     std::unique_ptr<SkyboxModel::Mesh> m_skyboxMesh;
-    std::unique_ptr<SkyboxMaterial> m_skyboxMaterial;
+    std::unique_ptr<mge::SkyboxMaterial> m_skyboxMaterial;
     std::unique_ptr<SkyboxModel::Material::Instance> m_skyboxMaterialInstance;
     mge::Texture m_skyboxTexture;
 
@@ -118,7 +115,7 @@ class Game : public mge::Engine {
             loadShaderModule("build/pbr.frag.spv")
             );
 
-        m_skyboxMaterial = std::make_unique<SkyboxMaterial>(*this,
+        m_skyboxMaterial = std::make_unique<mge::SkyboxMaterial>(*this,
             loadShaderModule("build/skybox.vert.spv"),
             loadShaderModule("build/skybox.frag.spv")
             );
