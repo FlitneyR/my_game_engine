@@ -74,7 +74,7 @@ void main() {
         dist = length(lightPositionDelta);
         float angleFalloff = dot(lightDirection, v_direction);
         angleFalloff = clamp((angleFalloff - 1.0) / (1.0 - cos(v_angle)) + 1.0, 0.0, 1.0);
-        radiance = v_colour * angleFalloff / (dist * dist);
+        radiance = v_colour * angleFalloff * angleFalloff / (dist * dist);
         break;
     }
 
@@ -100,8 +100,8 @@ void main() {
 
     vec3 colour = illumination;
 
-    colour = colour / (colour + vec3(1.0));
-    colour = pow(colour, vec3(1.0 / 1.0));
+    // colour = colour / (colour + vec3(1.0));
+    // colour = pow(colour, vec3(1.0 / 1.0));
    
     f_emissive = vec4(colour, 1.0);
 }

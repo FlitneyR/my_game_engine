@@ -140,7 +140,7 @@ MATERIAL_TEMPLATE
 vk::PipelineRasterizationStateCreateInfo MATERIAL::getRasterizationState() {
     return vk::PipelineRasterizationStateCreateInfo {}
         .setCullMode(vk::CullModeFlagBits::eBack)
-        .setFrontFace(vk::FrontFace::eClockwise)
+        .setFrontFace(vk::FrontFace::eCounterClockwise)
         .setLineWidth(1.f)
         .setDepthClampEnable(false)
         .setRasterizerDiscardEnable(false)

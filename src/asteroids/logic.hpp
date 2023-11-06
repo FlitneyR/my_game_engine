@@ -63,11 +63,10 @@ public:
 
         if (radius <= 3.f) return;
 
-        float ratio = mge::Engine::randomRangeFloat(0.2f, 0.8f);
         auto breakAxis = mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(10.f, 50.f);
 
         for (float i = -1.f; i <= 1.f; i += 2.f) {
-            float newRadius = 0.5f * radius;
+            float newRadius = radius * 0.5f;
 
             auto newEntity = r_ecsManager->makeEntityFromTemplate("Asteroid");
 
@@ -79,21 +78,21 @@ public:
             transform->setScale(glm::vec3 { newRadius });
 
             collision->setupSphere(newRadius);
+
+            rigidbody->m_mass = newRadius * newRadius * newRadius;
             
             rigidbody->m_velocity = oldRigidbody->m_velocity;
-            rigidbody->m_velocity += breakAxis * i;
+            rigidbody->m_velocity += breakAxis * i * oldRigidbody->m_mass / (8.f * rigidbody->m_mass);
 
             rigidbody->m_angularVelocity = oldRigidbody->m_angularVelocity;
             rigidbody->m_angularVelocity += mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(3.f, 10.f);
-
-            rigidbody->m_mass = newRadius * newRadius * newRadius;
         }
     }
 };
 
 class BulletSystem : public mge::ecs::System<BulletComponent> {
 public:
-    static constexpr float MAX_AGE = 1.f;
+    static constexpr float MAX_AGE = 3.f;
 
     void destroyOldBullets(float deltaTime) {
         std::vector<mge::ecs::Entity> entitiesToDestroy;
@@ -129,7 +128,7 @@ public:
     constexpr static float PITCH_RATE = 0.75f * glm::pi<float>();
     constexpr static float TURN_RATE = 0.75f * glm::pi<float>();
     constexpr static float ACCELERATION_RATE = 25.f;
-    constexpr static float RATE_OF_FIRE = 0.25f;
+    constexpr static float RATE_OF_FIRE = 0.125f;
 
     void checkForAsteroidCollision(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisions) {
         auto asteroidSystem = r_ecsManager->getSystem<AsteroidComponent>("Asteroid");
@@ -154,15 +153,15 @@ public:
 
         static float turnInput = 0.f, pitchInput = 0.f;
 
-        turnInput = glm::mix(turnInput, static_cast<float>(turnRight - turnLeft), glm::clamp(2.f * deltaTime, 0.f, 1.f));
-        pitchInput = glm::mix(pitchInput, static_cast<float>(pitchUp - pitchDown), glm::clamp(2.f * deltaTime, 0.f, 1.f));
+        turnInput = glm::mix(turnInput, static_cast<float>(turnLeft - turnRight), glm::clamp(2.f * deltaTime, 0.f, 1.f));
+        pitchInput = glm::mix(pitchInput, static_cast<float>(pitchDown - pitchUp), glm::clamp(2.f * deltaTime, 0.f, 1.f));
 
         for (auto& [ entity, comp ] : m_components)
         if (comp.m_alive)
         if (auto transform = transformSystem->getComponent(entity))
         if (auto rigidbody = rigidbodySystem->getComponent(entity)) {
             comp.m_fireCooldown = glm::max(0.f, comp.m_fireCooldown - deltaTime);
-            float pitchDelta = pitchInput * -PITCH_RATE * deltaTime;
+            float pitchDelta = pitchInput * PITCH_RATE * deltaTime;
             float turnDelta = turnInput * TURN_RATE * deltaTime;
 
             transform->setRotation(
@@ -172,7 +171,7 @@ public:
                 transform->getRotation()
             );
 
-            rigidbody->m_velocity *= glm::clamp(1.f - 0.25f * deltaTime, 0.f, 1.f);
+            rigidbody->m_velocity *= glm::clamp(1.f - 0.1f * deltaTime, 0.f, 1.f);
             rigidbody->m_acceleration = transform->getForward() * (ACCELERATION_RATE * accelerate);
 
             static float side = -1.f;

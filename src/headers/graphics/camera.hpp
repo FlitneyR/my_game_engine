@@ -50,7 +50,8 @@ struct Camera : public Uniform<CameraUniformData> {
 
         result.m_view = glm::lookAt(m_position, m_position + m_forward, m_up);
         result.m_projection = glm::perspective(m_fov, m_aspect, m_near, m_far);
-        result.m_projection = glm::rotate(result.m_projection, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f));
+        // result.m_projection = glm::rotate(result.m_projection, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f));
+        result.m_projection = glm::scale(result.m_projection, glm::vec3 { 1.f, -1.f, 1.f });
 
         return result;
     }

@@ -223,6 +223,45 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
         vertices[i].m_normal = normals[normalIndex];
     }
 
+    std::vector<glm::vec3> tangents(vertices.size()), bitangents(vertices.size());
+    std::vector<float> denominators(vertices.size());
+
+    for (int i = 0, j = 1, k = 2; k < indices.size(); i = ++k, j = ++k, ++k) {
+        int I = indices[i], J = indices[j], K = indices[k];
+
+        ModelVertex vi = vertices[I], vj = vertices[J], vk = vertices[K];
+
+        glm::vec3 jDeltaPosition = vj.m_position - vi.m_position;
+        glm::vec3 kDeltaPosition = vk.m_position - vi.m_position;
+        
+        glm::vec2 jDeltaUV = vj.m_texcoord - vi.m_texcoord; jDeltaUV.y *= -1;
+        glm::vec2 kDeltaUV = vk.m_texcoord - vi.m_texcoord; kDeltaUV.y *= -1;
+
+        /*
+        
+        jDeltaPosition = jDeltaUV.x * tangent + jDeltaUV.y * bitangent
+        kDeltaPosition = kDeltaUV.x * tangent + kDeltaUV.y * bitangent
+
+        therefore:
+
+        [ jDeltaPosition ] = [ jDeltaUV.x, jDeltaUV.y ] [ tangent   ]
+        [ kDeltaPosition ]   [ kDeltaUV.x, kDeltaUV.y ] [ bitangent ]
+
+        */
+
+        glm::mat2x3 m = glm::mat2x3 { jDeltaPosition, kDeltaPosition } * glm::inverse(glm::mat2 { jDeltaUV, kDeltaUV });
+        glm::vec3 tangent = m[0], bitangent = m[1];
+
+        tangents[I] += tangent; bitangents[I] += bitangent; denominators[I] += 1.0f;
+        tangents[J] += tangent; bitangents[J] += bitangent; denominators[J] += 1.0f;
+        tangents[K] += tangent; bitangents[K] += bitangent; denominators[K] += 1.0f;
+    }
+
+    for (int index = 0; index < vertices.size(); index++) {
+        vertices[index].m_tangent = tangents[index] / denominators[index];
+        vertices[index].m_bitangent = bitangents[index] / denominators[index];
+    }
+
     return Mesh<ModelVertex>(engine, vertices, indices);
 }
 

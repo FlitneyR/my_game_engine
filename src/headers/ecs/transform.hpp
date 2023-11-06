@@ -19,17 +19,9 @@ public:
     glm::quat getRotation() { return m_rotation; }
     glm::vec3 getScale() { return m_scale; }
 
-    glm::vec3 getRight() {
-        return glm::normalize(getMat3()[0]);
-    }
-
-    glm::vec3 getForward() {
-        return glm::normalize(getMat3()[1]);
-    }
-
-    glm::vec3 getUp() {
-        return glm::normalize(getMat3()[2]);
-    }
+    glm::vec3 getRight() { return glm::normalize(getMat3()[0]); }
+    glm::vec3 getForward() { return glm::normalize(getMat3()[1]); }
+    glm::vec3 getUp() { return glm::normalize(getMat3()[2]); }
 
     void setPosition(glm::vec3 position) {
         m_position = position;
@@ -47,7 +39,9 @@ public:
     }
 
     void updateMatrix() {
-        m_matrix = glm::translate(glm::mat4 { 1.f }, m_position) * glm::scale(glm::mat4 { 1.f }, m_scale) * glm::toMat4(m_rotation);
+        m_matrix = glm::translate(glm::mat4 { 1.f }, m_position)
+                 * glm::scale(glm::mat4 { 1.f }, m_scale)
+                 * glm::toMat4(m_rotation);
     }
 
     glm::mat4 getMat4() {

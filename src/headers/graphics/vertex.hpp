@@ -76,6 +76,8 @@ class ModelVertex : public VertexBase {
 public:
     glm::vec3 m_position;
     glm::vec3 m_normal;
+    glm::vec3 m_tangent;
+    glm::vec3 m_bitangent;
     glm::vec2 m_texcoord;
 
     static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes() {
@@ -95,6 +97,18 @@ public:
             vk::VertexInputAttributeDescription {}
                 .setBinding(0)
                 .setLocation(2)
+                .setOffset(offsetof(ModelVertex, m_tangent))
+                .setFormat(vk::Format::eR32G32B32Sfloat)
+                ,
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(3)
+                .setOffset(offsetof(ModelVertex, m_bitangent))
+                .setFormat(vk::Format::eR32G32B32Sfloat)
+                ,
+            vk::VertexInputAttributeDescription {}
+                .setBinding(0)
+                .setLocation(4)
                 .setOffset(offsetof(ModelVertex, m_texcoord))
                 .setFormat(vk::Format::eR32G32Sfloat)
                 ,

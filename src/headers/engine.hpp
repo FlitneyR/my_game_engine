@@ -45,18 +45,22 @@ public:
     vk::DeviceMemory m_depthImageMemory;
     vk::ImageView m_depthImageView;
 
+    vk::Format m_albedoFormat = vk::Format::eR8G8B8A8Srgb;
     vk::Image m_albedoImage;
     vk::DeviceMemory m_albedoImageMemory;
     vk::ImageView m_albedoImageView;
 
+    vk::Format m_normalFormat = vk::Format::eR16G16B16A16Snorm;
     vk::Image m_normalImage;
     vk::DeviceMemory m_normalImageMemory;
     vk::ImageView m_normalImageView;
 
+    vk::Format m_armFormat = vk::Format::eR8G8B8A8Unorm;
     vk::Image m_armImage;
     vk::DeviceMemory m_armImageMemory;
     vk::ImageView m_armImageView;
 
+    vk::Format m_emissiveFormat = vk::Format::eR16G16B16A16Sfloat;
     vk::Image m_emissiveImage;
     vk::DeviceMemory m_emissiveImageMemory;
     vk::ImageView m_emissiveImageView;

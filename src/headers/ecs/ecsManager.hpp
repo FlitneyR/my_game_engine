@@ -44,9 +44,12 @@ public:
     }
 
     Entity makeEntityFromTemplate(const std::string& name) {
-        auto func = m_templateEntities.at(name);
-
-        return func(*this);
+        try {
+            auto func = m_templateEntities.at(name);
+            return func(*this);
+        } catch (std::out_of_range e) {
+            throw std::runtime_error("Entity template '" + name + "' does not exist");
+        }
     }
 };
 

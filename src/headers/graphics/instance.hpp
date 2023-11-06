@@ -81,10 +81,11 @@ struct ModelTransformMeshInstance : public MeshInstanceBase {
 struct Texture {
     std::vector<uint8_t> m_data;
     uint32_t m_width, m_height;
+    vk::Format m_format = vk::Format::eR8G8B8A8Srgb;
 
     Texture() = default;
 
-    Texture(const char* filename) {
+    Texture(const char* filename, vk::Format format = vk::Format::eR8G8B8A8Srgb) : m_format(format) {
         int channels, width, height;
         uint8_t* data = stbi_load(filename, &width, &height, &channels, 4);
         
@@ -112,6 +113,7 @@ public:
         r_engine(&engine)
     {}
 
+    std::array<Texture, N> m_textures;
     std::array<vk::Image, N> m_images;
     std::array<vk::ImageView, N> m_imageViews;
     std::array<vk::Sampler, N> m_samplers;
@@ -122,22 +124,23 @@ public:
     static vk::DescriptorSetLayout s_descriptorSetLayout;
 
     void setup(const std::array<Texture, N>& textures) {
-        setupImages(textures);
+        m_textures = textures;
+        setupImages();
         allocateMemories();
         setupImageViews();
         setupSamplers();
-        fillImages(textures);
+        fillImages();
         createDescriptorSetLayout();
         setupDescriptorPool();
         setupDescriptorSet();
         transitionImageLayout();
     }
 
-    void setupImages(const std::array<Texture, N>& textures);
+    void setupImages();
     void allocateMemories();
     void setupImageViews();
     void setupSamplers();
-    void fillImages(const std::array<Texture, N>& textures);
+    void fillImages();
     void createDescriptorSetLayout();
     void setupDescriptorPool();
     void setupDescriptorSet();
@@ -173,13 +176,13 @@ NTEXTURE_TEMPLATE
 vk::DescriptorSetLayout NTEXTURE_MATERIAL_INSTANCE::s_descriptorSetLayout = VK_NULL_HANDLE;
 
 NTEXTURE_TEMPLATE
-void NTEXTURE_MATERIAL_INSTANCE::setupImages(const std::array<Texture, N>& textures) {
+void NTEXTURE_MATERIAL_INSTANCE::setupImages() {
     for (int i = 0; i < N; i++) {
-        auto& texture = textures[i];
+        auto& texture = m_textures[i];
 
         auto createInfo = vk::ImageCreateInfo {}
             .setArrayLayers(1)
-            .setFormat(vk::Format::eR8G8B8A8Srgb)
+            .setFormat(m_textures[i].m_format)
             .setImageType(vk::ImageType::e2D)
             .setInitialLayout(vk::ImageLayout::eUndefined)
             .setMipLevels(1)
@@ -204,7 +207,7 @@ NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::setupImageViews() {
     for (int i = 0; i < N; i++) {
         auto createInfo = vk::ImageViewCreateInfo {}
-            .setFormat(vk::Format::eR8G8B8A8Srgb)
+            .setFormat(m_textures[i].m_format)
             .setImage(m_images[i])
             .setViewType(vk::ImageViewType::e2D)
             ;
@@ -259,15 +262,15 @@ void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
 }
 
 NTEXTURE_TEMPLATE
-void NTEXTURE_MATERIAL_INSTANCE::fillImages(const std::array<Texture, N>& textures) {
+void NTEXTURE_MATERIAL_INSTANCE::fillImages() {
     for (int i = 0; i < N; i++) {
-        void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[i], 0, textures[i].m_data.size());
-        memcpy(mappedMemory, textures[i].m_data.data(), textures[i].m_data.size());
+        void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[i], 0, m_textures[i].m_data.size());
+        memcpy(mappedMemory, m_textures[i].m_data.data(), m_textures[i].m_data.size());
 
         auto mappedMemoryRange = vk::MappedMemoryRange {}
             .setMemory(m_bufferMemories[i])
             .setOffset(0)
-            .setSize(textures[i].m_data.size())
+            .setSize(m_textures[i].m_data.size())
             ;
 
         r_engine->m_device.flushMappedMemoryRanges(mappedMemoryRange);

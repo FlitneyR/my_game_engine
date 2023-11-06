@@ -2,43 +2,44 @@
 
 This is my attempt at a simple Vulkan-based game engine.
 
+**Please note!**
+Building a Vulkan program is a non-trivial process. I do not expect this code to run on anyone else's computer, sorry. It is purely for me to explore C++/Vulkan game development and to demonstrate that I can write Vulkan code.
+
 ## Goal
 
 To create a simple game engine with the following features:
 - GPU accelerated rendering in Vulkan
-- A user friendly input system
-- A simple physics system
+- An Entity Component System
+- A Simple Physics System
 
-## Design
-
-- The main program will be an `mge::Engine`
-- Every game will be a class extending `mge::Engine`
-- `mge::Engine` will by default handle
-    - Initialising vulkan
-        - Creating an instance
-        - Activating validation layers
-        - Selecting a GPU
-        - Making the required render passes
-- Left for implementation by the user will be
-    - `mge::Engine::draw(vk::CommandBuffer cmd)` to record a command buffer
-    - `mge::Engine::onTick(float deltaTime)` to update the game state per frame
-    - `mge::Engine::onFixedTick(float deltaTime)` to update the game state per simulation tick
 
 ### Graphics
 
-- All rendering will be handled using `mge::Model`s
-- An `mge::Model` will have one template parameter: `Vertex`
-- An `mge::Model<Vertex>` will have two members
-    - `mge::Mesh<Vertex>::Instance& mesh`
-    - `mge::Material<Vertex>::Instance& material`
-- You will be able to acquire a `mge::Mesh<Vertex>::Instance&` and `mge::Material<Vertex>::Instance&` for an `mge::Mesh<Vertex>` and an `mge::Material<Vertex>` respectively
-- `mge::Mesh`s will store the vertices, indices, and instances of a mesh in `std::vector`s, along with their buffers and device memory
-- `mge::Material`s will store the shaders and pipelines
+The graphics system consists of two renderpass subpasses:
+- a GBuffer pass, which renders surface information to a geometry buffer consisting of five textures:
+    - albedo, the surface's base colour
+    - normal, the direction the surface is facing
+    - ambient occlusion - roughness - metallness, the physical properties of the surface
+    - emissive, how much light the surface is emitting
+    - and depth, analogous to the distance the surface is from the camera
+- and a lighting pass, which computes surface illumination from each light in the scene and outputs to the emissive texture
 
-### Input
-
-***TBD***
+TODO!
+- Add a post processing subpass
+- Add a TAA subpass
 
 ### Physics
 
-***TBD***
+The physics system is implemented within the ECS framework. It currently supports only Sphere-Sphere collision. It uses a Binary Space Partition Tree to reduce the number of pairs of colliders it needs to check collisions between.
+
+The Binary Space Partition Tree works as follows:
+- Determine the mean position of all colliders
+- Determine the variance of positions of colliders for the X, Y, and Z axes
+- Select the axis with the highest variance
+- You now have a plane perpendicular to the selected axis at the position of the mean point
+- Split the possible colliders into two subtrees:
+    - colliders with a bounding box at least partially on one side of this plane,
+    - and colliders with a bounding box at least partially on the other side of this plane
+- Repeat for each subtree until they reach a maximum depth or a minimum number of colliders
+
+This algorithm is not free, and can in fact be quite costly. I have found that limiting the depth to a maximum of 10 splits, and limiting each set to contain no less that 10 colliders produces the best results and meant the game could support 8,000 entities while maintaining a smooth framerate, when with a brute force approach it could support only 1,000.

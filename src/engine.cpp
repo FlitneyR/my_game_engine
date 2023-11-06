@@ -32,6 +32,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
     m_window = glfwCreateWindow(initWidth, initHeight, getGameName().c_str(), nullptr, nullptr);
 
     createInstance();
@@ -436,7 +437,7 @@ void Engine::createRenderPass() {
         .setFormat(m_swapchainFormat.format)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
@@ -455,7 +456,7 @@ void Engine::createRenderPass() {
 
     auto albedoTarget = vk::AttachmentDescription {}
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setFormat(m_albedoFormat)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -466,7 +467,7 @@ void Engine::createRenderPass() {
 
     auto normalTarget = vk::AttachmentDescription {}
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setFormat(vk::Format::eR16G16B16A16Snorm)
+        .setFormat(m_normalFormat)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -477,7 +478,7 @@ void Engine::createRenderPass() {
 
     auto armTarget = vk::AttachmentDescription {}
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setFormat(vk::Format::eR8G8B8A8Unorm)
+        .setFormat(m_armFormat)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -488,7 +489,7 @@ void Engine::createRenderPass() {
 
     auto emissiveTarget = vk::AttachmentDescription {}
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setFormat(m_emissiveFormat)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -660,11 +661,11 @@ void Engine::createGBuffer() {
                 | vk::ImageUsageFlagBits::eInputAttachment)
         ;
 
-    m_albedoImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR8G8B8A8Srgb));
-    m_normalImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR16G16B16A16Snorm));
-    m_armImage = m_device.createImage(imageCreateInfo.setFormat(vk::Format::eR8G8B8A8Unorm));
+    m_albedoImage = m_device.createImage(imageCreateInfo.setFormat(m_albedoFormat));
+    m_normalImage = m_device.createImage(imageCreateInfo.setFormat(m_normalFormat));
+    m_armImage = m_device.createImage(imageCreateInfo.setFormat(m_armFormat));
     m_emissiveImage = m_device.createImage(imageCreateInfo
-        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setFormat(m_emissiveFormat)
         .setUsage(imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferSrc));
 
     auto imageViewCreateInfo = vk::ImageViewCreateInfo {}
@@ -694,20 +695,20 @@ void Engine::createGBuffer() {
     }
 
     m_albedoImageView = m_device.createImageView(imageViewCreateInfo
-        .setFormat(vk::Format::eR8G8B8A8Srgb)
+        .setFormat(m_albedoFormat)
         .setImage(m_albedoImage));
 
     m_normalImageView = m_device.createImageView(imageViewCreateInfo
         .setImage(m_normalImage)
-        .setFormat(vk::Format::eR16G16B16A16Snorm));
+        .setFormat(m_normalFormat));
 
     m_armImageView = m_device.createImageView(imageViewCreateInfo
         .setImage(m_armImage)
-        .setFormat(vk::Format::eR8G8B8A8Unorm));
+        .setFormat(m_armFormat));
 
     m_emissiveImageView = m_device.createImageView(imageViewCreateInfo
         .setImage(m_emissiveImage)
-        .setFormat(vk::Format::eR8G8B8A8Srgb));
+        .setFormat(m_emissiveFormat));
     
     createGBufferDescriptorSet();
 }
