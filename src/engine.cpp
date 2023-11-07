@@ -433,7 +433,7 @@ void Engine::createDepthBuffer() {
 
 void Engine::createRenderPass() {
     auto renderTarget = vk::AttachmentDescription {}
-        .setFinalLayout(vk::ImageLayout::ePresentSrcKHR)
+        .setFinalLayout(vk::ImageLayout::eTransferDstOptimal)
         .setFormat(m_swapchainFormat.format)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
@@ -488,7 +488,7 @@ void Engine::createRenderPass() {
         ;
 
     auto emissiveTarget = vk::AttachmentDescription {}
-        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setFormat(m_emissiveFormat)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
@@ -545,7 +545,7 @@ void Engine::createRenderPass() {
             ,
     };
     
-    auto renderAttachment = vk::AttachmentReference {}
+    auto emissiveAttachment = vk::AttachmentReference {}
         .setAttachment(5)
         .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
         ;
@@ -562,7 +562,7 @@ void Engine::createRenderPass() {
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             ,
         vk::SubpassDescription {}
-            .setColorAttachments(renderAttachment)
+            .setColorAttachments(emissiveAttachment)
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setInputAttachments(lightingAttachments)
             ,
@@ -889,39 +889,6 @@ void Engine::draw() {
 
     cmd.endRenderPass();
 
-    auto imageBarrier = vk::ImageMemoryBarrier {}
-        .setSrcQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
-        .setDstQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
-        .setSubresourceRange(vk::ImageSubresourceRange {
-            vk::ImageAspectFlagBits::eColor,
-            0, 1,
-            0, 1
-        })
-        ;
-
-    std::vector<vk::ImageMemoryBarrier> imageBarriers {
-        imageBarrier
-            .setImage(m_emissiveImage)
-            .setOldLayout(vk::ImageLayout::eColorAttachmentOptimal)
-            .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
-            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-            .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
-            ,
-        imageBarrier
-            .setImage(m_swapchainImages[imageIndex])
-            .setOldLayout(vk::ImageLayout::ePresentSrcKHR)
-            .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
-            .setSrcAccessMask({})
-            .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
-            ,
-    };
-
-    cmd.pipelineBarrier(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits::eTransfer,
-        vk::DependencyFlagBits::eByRegion,
-        {}, {}, imageBarriers);
-
     auto region = vk::ImageBlit {}
         .setSrcSubresource(vk::ImageSubresourceLayers {
             vk::ImageAspectFlagBits::eColor,
@@ -954,6 +921,16 @@ void Engine::draw() {
         m_swapchainImages[imageIndex], vk::ImageLayout::eTransferDstOptimal,
         region, vk::Filter::eLinear
     );
+
+    auto imageBarrier = vk::ImageMemoryBarrier {}
+        .setSrcQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        .setDstQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        .setSubresourceRange(vk::ImageSubresourceRange {
+            vk::ImageAspectFlagBits::eColor,
+            0, 1,
+            0, 1
+        })
+        ;
 
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer,
