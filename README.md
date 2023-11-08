@@ -2,9 +2,6 @@
 
 This is my attempt at a simple Vulkan-based game engine.
 
-**Please note!**
-Building a Vulkan program is a non-trivial process. I do not expect this code to run on anyone else's computer, sorry. It is purely for me to explore C++/Vulkan game development and to demonstrate that I can write Vulkan code.
-
 ## Demos
 
 - Asteroids game: https://youtu.be/uIyIgphtwv8
