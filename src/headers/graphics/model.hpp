@@ -60,7 +60,6 @@ public:
     uint32_t makeInstance() override {
         uint32_t id = nextInstanceID++;
         m_meshInstances[id] = MeshInstance {};
-        // m_instances[id] = Instance { this, id };
         return id;
     }
 

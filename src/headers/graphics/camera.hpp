@@ -33,8 +33,8 @@ struct Camera : public Uniform<CameraUniformData> {
 
     Camera(Engine& engine) {
         r_engine = &engine;
-        m_forward = glm::vec3(0.f, 0.f, 1.f);
-        m_up = glm::vec3(0.f, 1.f, 0.f);
+        m_forward = glm::vec3(0.f, 1.f, 0.f);
+        m_up = glm::vec3(0.f, 0.f, 1.f);
 
         m_fov = glm::radians(70.f);
 
@@ -57,7 +57,7 @@ struct Camera : public Uniform<CameraUniformData> {
     }
 
     glm::vec3 getRight() {
-        return glm::normalize(glm::cross(m_up, m_forward));
+        return glm::normalize(glm::cross(m_forward, m_up));
     }
 };
 

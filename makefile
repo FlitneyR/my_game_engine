@@ -16,7 +16,7 @@ main: bin/main shaders
 bin/main: build/main.o $(MAIN_DEPENDENCIES)
 	clang++ $(LFLAGS) -o $@ $^
 
-build/main.o: src/main.cpp src/asteroids/game.cpp 
+build/main.o: src/main.cpp src/demos/asteroids/game.cpp 
 	clang++ $(CFLAGS) -o $@ $<
 
 build/%.o: src/%.cpp src/headers/%.hpp

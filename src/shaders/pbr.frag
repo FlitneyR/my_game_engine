@@ -16,12 +16,14 @@ layout(set = 1, binding = 1) uniform sampler2D armTex;
 layout(set = 1, binding = 2) uniform sampler2D normalTex;
 
 void main() {
-    vec3 albedo = texture(albedoTex, v_texcoord).rgb;
+    vec4 albedo = texture(albedoTex, v_texcoord);
+    if (albedo.a < 0.5) discard;
+
     vec3 arm = texture(armTex, v_texcoord).rgb;
     vec3 normal = texture(normalTex, v_texcoord).rgb;
     normal = 2.0 * normal - 1.0;
 
-    f_albedo = vec4(albedo, 1.0);
+    f_albedo = vec4(albedo.rgb, 1.0);
     f_arm = vec4(arm, 1.0);
     f_normal = vec4(normalize(v_tangent * normal.x + v_bitangent * normal.y + v_normal * normal.z), 1.0);
     f_emissive = vec4(0.0, 0.0, 0.0, 1.0);

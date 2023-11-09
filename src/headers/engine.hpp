@@ -138,13 +138,8 @@ public:
     virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}
 
-    virtual void physicsUpdate(double deltaTime) {
-        
-    }
-
-    virtual void update(double deltaTime) {
-        
-    }
+    virtual void physicsUpdate(double deltaTime) {}
+    virtual void update(double deltaTime) {}
 
     virtual void end() {}
 };

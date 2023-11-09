@@ -37,7 +37,7 @@ void main() {
     vec3 normal = subpassLoad(normalTex).rgb;
     vec3 arm = subpassLoad(armTex).rgb;
 
-    float ao = arm.r;
+    float ao = arm.r; ao = 1.0;
     float roughness = arm.g;
     float metallness = arm.b;
 
@@ -100,8 +100,8 @@ void main() {
 
     vec3 colour = illumination;
 
-    // colour = colour / (colour + vec3(1.0));
-    // colour = pow(colour, vec3(1.0 / 1.0));
+    colour = colour / (colour + vec3(1.0));
+    colour = pow(colour, vec3(1.0 / 1.0));
    
     f_emissive = vec4(colour, 1.0);
 }

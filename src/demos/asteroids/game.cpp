@@ -70,9 +70,9 @@ class Game : public mge::Engine {
         m_camera->m_forward = glm::vec3 { 0.f, 1.f, 0.f };
         m_camera->m_up = glm::vec3 { 0.f, 0.f, 1.f };
 
-        m_asteroidMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/lowpoly_asteroid.obj"));
-        m_spaceshipMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/smoother_spaceship.obj"));
-        m_skyboxMesh = std::make_unique<SkyboxModel::Mesh>(mge::loadObjMesh(*this, "assets/skybox.obj"));
+        m_asteroidMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/lowpoly_asteroid.obj"));
+        m_spaceshipMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/smoother_spaceship.obj"));
+        m_skyboxMesh = std::make_unique<SkyboxModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/skybox.obj"));
         m_lightQuad = std::make_unique<mge::Light::Mesh>(makeFullScreenQuad(*this));
         m_bulletMesh = std::make_unique<BulletModel::Mesh>(
             *this,
@@ -91,15 +91,15 @@ class Game : public mge::Engine {
                 1, 2, 5,    1, 5, 3,
             });
 
-        m_asteroidAlbedo = mge::Texture("assets/asteroid_albedo.png");
-        m_asteroidARM = mge::Texture("assets/new_asteroid_arm.png");
-        m_asteroidNormal = mge::Texture("assets/asteroid_normal.png", vk::Format::eR8G8B8A8Unorm);
+        m_asteroidAlbedo = mge::Texture("assets/asteroids/asteroid_albedo.png");
+        m_asteroidARM = mge::Texture("assets/asteroids/new_asteroid_arm.png");
+        m_asteroidNormal = mge::Texture("assets/asteroids/asteroid_normal.png", vk::Format::eR8G8B8A8Unorm);
         
-        m_spaceshipAlbedo = mge::Texture("assets/spaceship_albedo.png");
-        m_spaceshipARM = mge::Texture("assets/spaceship_arm.png");
-        m_spaceshipNormal = mge::Texture("assets/spaceship_normal.png");
+        m_spaceshipAlbedo = mge::Texture("assets/asteroids/spaceship_albedo.png");
+        m_spaceshipARM = mge::Texture("assets/asteroids/spaceship_arm.png");
+        m_spaceshipNormal = mge::Texture("assets/asteroids/spaceship_normal.png");
 
-        m_skyboxTexture = mge::Texture("assets/skybox.png");
+        m_skyboxTexture = mge::Texture("assets/asteroids/skybox.png");
 
         m_objectMaterial = std::make_unique<ObjectModel::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"), loadShaderModule("build/pbr.frag.spv"));

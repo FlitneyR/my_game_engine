@@ -122,11 +122,10 @@ vk::PipelineVertexInputStateCreateInfo MATERIAL::makeVertexInputState() {
 
 MATERIAL_TEMPLATE
 void MATERIAL::createPipelineLayout() {
-    vk::PipelineLayoutCreateInfo createInfo; createInfo
-        .setSetLayouts(m_descriptorSetLayouts)
-        ;
-
-    m_pipelineLayout = r_engine.m_device.createPipelineLayout(createInfo);
+    m_pipelineLayout = r_engine.m_device.createPipelineLayout(
+        vk::PipelineLayoutCreateInfo {}
+            .setSetLayouts(m_descriptorSetLayouts)
+    );
 }
 
 MATERIAL_TEMPLATE

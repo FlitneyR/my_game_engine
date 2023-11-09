@@ -80,14 +80,18 @@ struct ModelTransformMeshInstance : public MeshInstanceBase {
 
 struct Texture {
     std::vector<uint8_t> m_data;
-    uint32_t m_width, m_height;
+    uint32_t m_width, m_height, m_mipMapLevels = 1;
     vk::Format m_format = vk::Format::eR8G8B8A8Srgb;
 
     Texture() = default;
 
-    Texture(const char* filename, vk::Format format = vk::Format::eR8G8B8A8Srgb) : m_format(format) {
+    Texture(const char* filename, vk::Format format = vk::Format::eR8G8B8A8Srgb, bool generateMipMaps = true) : m_format(format) {
         int channels, width, height;
         uint8_t* data = stbi_load(filename, &width, &height, &channels, 4);
+
+        if (generateMipMaps) m_mipMapLevels = static_cast<uint32_t>(
+            glm::floor(glm::log2(static_cast<float>(
+                glm::max(width, height))))) + 1;
         
         if (!data) throw std::runtime_error("Failed to load image: " + std::string(filename));
 
@@ -141,6 +145,7 @@ public:
     void setupImageViews();
     void setupSamplers();
     void fillImages();
+    void generateMipMaps(uint32_t index);
     void createDescriptorSetLayout();
     void setupDescriptorPool();
     void setupDescriptorSet();
@@ -180,47 +185,42 @@ void NTEXTURE_MATERIAL_INSTANCE::setupImages() {
     for (int i = 0; i < N; i++) {
         auto& texture = m_textures[i];
 
-        auto createInfo = vk::ImageCreateInfo {}
+        m_images[i] = r_engine->m_device.createImage(vk::ImageCreateInfo {}
             .setArrayLayers(1)
-            .setFormat(m_textures[i].m_format)
+            .setFormat(texture.m_format)
             .setImageType(vk::ImageType::e2D)
             .setInitialLayout(vk::ImageLayout::eUndefined)
-            .setMipLevels(1)
+            .setMipLevels(texture.m_mipMapLevels)
             .setQueueFamilyIndices(*r_engine->m_queueFamilies.graphicsFamily)
             .setSamples(vk::SampleCountFlagBits::e1)
             .setSharingMode(vk::SharingMode::eExclusive)
             .setTiling(vk::ImageTiling::eOptimal)
-            .setUsage(vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled)
-            ;
-        
-        createInfo.extent
-            .setWidth(texture.m_width)
-            .setHeight(texture.m_height)
-            .setDepth(1)
-            ;
-
-        m_images[i] = r_engine->m_device.createImage(createInfo);
+            .setUsage(vk::ImageUsageFlagBits::eStorage
+                    | vk::ImageUsageFlagBits::eSampled
+                    | vk::ImageUsageFlagBits::eTransferSrc
+                    | vk::ImageUsageFlagBits::eTransferDst)
+            .setExtent(vk::Extent3D {}
+                .setWidth(texture.m_width)
+                .setHeight(texture.m_height)
+                .setDepth(1))
+            );
     }
 }
 
 NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::setupImageViews() {
     for (int i = 0; i < N; i++) {
-        auto createInfo = vk::ImageViewCreateInfo {}
+        m_imageViews[i] = r_engine->m_device.createImageView(vk::ImageViewCreateInfo {}
             .setFormat(m_textures[i].m_format)
             .setImage(m_images[i])
             .setViewType(vk::ImageViewType::e2D)
-            ;
-        
-        createInfo.subresourceRange
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseArrayLayer(0)
-            .setBaseMipLevel(0)
-            .setLayerCount(1)
-            .setLevelCount(1)
-            ;
-
-        m_imageViews[i] = r_engine->m_device.createImageView(createInfo);
+            .setSubresourceRange(vk::ImageSubresourceRange {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setBaseArrayLayer(0)
+                .setBaseMipLevel(0)
+                .setLayerCount(1)
+                .setLevelCount(m_textures[i].m_mipMapLevels))
+            );
     }
 }
 
@@ -229,16 +229,16 @@ void NTEXTURE_MATERIAL_INSTANCE::setupSamplers() {
     for (int i = 0; i < N; i++) {
         auto properties = r_engine->m_physicalDevice.getProperties();
 
-        auto createInfo = vk::SamplerCreateInfo {}
+        m_samplers[i] = r_engine->m_device.createSampler(vk::SamplerCreateInfo {}
             .setAddressModeU(vk::SamplerAddressMode::eRepeat)
             .setAddressModeV(vk::SamplerAddressMode::eRepeat)
             .setMagFilter(vk::Filter::eLinear)
             .setMinFilter(vk::Filter::eLinear)
             .setMipmapMode(vk::SamplerMipmapMode::eLinear)
+            .setMinLod(0)
+            .setMaxLod(m_textures[i].m_mipMapLevels)
             .setMaxAnisotropy(properties.limits.maxSamplerAnisotropy)
-            ;
-
-        m_samplers[i] = r_engine->m_device.createSampler(createInfo);
+            );
     }
 }
 
@@ -248,8 +248,8 @@ void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
         auto memReqs = r_engine->m_device.getImageMemoryRequirements(m_images[i]);
 
         vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal
-                                        | vk::MemoryPropertyFlagBits::eHostVisible
-                                        ;
+                                           | vk::MemoryPropertyFlagBits::eHostVisible
+                                           ;
 
         auto allocInfo = vk::MemoryAllocateInfo {}
             .setAllocationSize(memReqs.size)
@@ -275,7 +275,93 @@ void NTEXTURE_MATERIAL_INSTANCE::fillImages() {
 
         r_engine->m_device.flushMappedMemoryRanges(mappedMemoryRange);
         r_engine->m_device.unmapMemory(m_bufferMemories[i]);
+
+        if (m_textures[i].m_mipMapLevels > 1) generateMipMaps(i);
     }
+}
+
+NTEXTURE_TEMPLATE
+void NTEXTURE_MATERIAL_INSTANCE::generateMipMaps(uint32_t index) {
+    vk::CommandBuffer cmd = r_engine->m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo {}
+        .setCommandBufferCount(1)
+        .setCommandPool(r_engine->m_commandPool)
+        .setLevel(vk::CommandBufferLevel::ePrimary))[0];
+    
+    cmd.begin(vk::CommandBufferBeginInfo {}
+        .setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+
+    auto imageBarrierToWrite = vk::ImageMemoryBarrier {}
+        .setImage(m_images[index])
+        .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
+        .setOldLayout(vk::ImageLayout::eUndefined)
+        .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setSubresourceRange(vk::ImageSubresourceRange {}
+            .setAspectMask(vk::ImageAspectFlagBits::eColor)
+            .setBaseArrayLayer(0)
+            .setLayerCount(1)
+            .setBaseMipLevel(0)
+            .setLevelCount(1));
+
+    auto imageBarrierToRead = vk::ImageMemoryBarrier {}
+        .setImage(m_images[index])
+        .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+        .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
+        .setOldLayout(vk::ImageLayout::eUndefined)
+        .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setSubresourceRange(vk::ImageSubresourceRange {}
+            .setAspectMask(vk::ImageAspectFlagBits::eColor)
+            .setBaseArrayLayer(0)
+            .setLayerCount(1)
+            .setBaseMipLevel(0)
+            .setLevelCount(1));
+    
+    int32_t width = m_textures[index].m_width, height = m_textures[index].m_height;
+
+    for (int level = 0; level < m_textures[index].m_mipMapLevels - 1; level++) {
+        imageBarrierToRead.subresourceRange
+                .setBaseMipLevel(level);
+        
+        imageBarrierToWrite.subresourceRange
+                .setBaseMipLevel(level + 1);
+        
+        cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eTransfer,
+            {}, {}, {},
+            { imageBarrierToRead, imageBarrierToWrite }
+            );
+
+        cmd.blitImage(
+            m_images[index], vk::ImageLayout::eTransferSrcOptimal,
+            m_images[index], vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageBlit {}
+                .setSrcOffsets({
+                    vk::Offset3D { 0, 0, 0 },
+                    vk::Offset3D { width, height, 1 },
+                    })
+                .setDstOffsets({
+                    vk::Offset3D { 0, 0, 0 },
+                    vk::Offset3D { std::max(width /= 2, 1), std::max(height /= 2, 1), 1 },
+                    })
+                .setSrcSubresource(vk::ImageSubresourceLayers {}
+                    .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                    .setBaseArrayLayer(0).setLayerCount(1)
+                    .setMipLevel(level))
+                .setDstSubresource(vk::ImageSubresourceLayers {}
+                    .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                    .setBaseArrayLayer(0).setLayerCount(1)
+                    .setMipLevel(level + 1)),
+            vk::Filter::eLinear
+            );
+    }
+    
+    cmd.end();
+
+    vk::Queue queue = r_engine->m_device.getQueue(*r_engine->m_queueFamilies.graphicsFamily, 0);
+    queue.submit(vk::SubmitInfo {} .setCommandBuffers(cmd));
+
+    r_engine->m_device.waitIdle();
+    r_engine->m_device.freeCommandBuffers(r_engine->m_commandPool, cmd);
 }
 
 NTEXTURE_TEMPLATE
@@ -373,7 +459,7 @@ void NTEXTURE_MATERIAL_INSTANCE::transitionImageLayout() {
             .setBaseArrayLayer(0)
             .setBaseMipLevel(0)
             .setLayerCount(1)
-            .setLevelCount(1)
+            .setLevelCount(m_textures[i].m_mipMapLevels)
             ;
 
         cmd.pipelineBarrier(

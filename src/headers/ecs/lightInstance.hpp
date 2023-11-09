@@ -19,6 +19,8 @@ public:
     mge::Light* r_light;
 
     LightComponent* addComponent(const Entity& entity) override {
+        r_ecsManager->getSystem<TransformComponent>("Transform")->addComponent(entity);
+
         auto* comp = System<LightComponent>::addComponent(entity);
         comp->m_instanceID = r_light->makeInstance();
         return comp;

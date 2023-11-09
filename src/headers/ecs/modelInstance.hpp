@@ -24,6 +24,8 @@ public:
     }
 
     ModelComponent* addComponent(const Entity& entity, const std::string modelName) {
+        r_ecsManager->getSystem<TransformComponent>("Transform")->addComponent(entity);
+
         auto* comp = System<ModelComponent>::addComponent(entity);
         comp->m_modelName = modelName;
         comp->m_instanceID = r_models.at(modelName)->makeInstance();
