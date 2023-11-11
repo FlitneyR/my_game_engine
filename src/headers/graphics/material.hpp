@@ -21,7 +21,7 @@ protected:
     vk::ShaderModule m_vertexShader, m_fragmentShader;
     std::vector<vk::DescriptorSetLayout> m_descriptorSetLayouts;
     vk::PipelineLayout m_pipelineLayout;
-    vk::Pipeline m_pipeline;
+    vk::Pipeline m_pipeline, m_shadowMappingPipeline;
 
 public:
     typedef MaterialInstance Instance;
@@ -37,6 +37,7 @@ public:
     void bindUniform(vk::CommandBuffer cmd, UniformType& uniform);
     virtual void bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index);
     virtual void bindPipeline(vk::CommandBuffer cmd);
+    virtual void bindShadowMapPipeline(vk::CommandBuffer cmd);
     void bindInstance(vk::CommandBuffer cmd, MaterialInstance instance);
 
     virtual void cleanup();
@@ -47,6 +48,8 @@ public:
     }
 
 protected:
+    virtual bool shouldCreateShadowMappingPipeline() { return true; }
+
     virtual void createDescriptorSetLayouts();
     virtual void createPipelineLayout();
 
@@ -56,7 +59,7 @@ protected:
     virtual vk::PipelineRasterizationStateCreateInfo getRasterizationState();
     virtual vk::PipelineDepthStencilStateCreateInfo getDepthStencilState();
     virtual vk::PipelineColorBlendStateCreateInfo getColorBlendState();
-    virtual uint32_t getSubpassIndex() { return 0; }
+    virtual void modifyPipelineCreateInfo(vk::GraphicsPipelineCreateInfo& createInfo) {}
 
     virtual void createPipeline();
 };
@@ -190,7 +193,7 @@ void MATERIAL::createPipeline() {
     auto depthStencilState = getDepthStencilState();
     auto colorBlendState = getColorBlendState();
 
-    vk::PipelineViewportStateCreateInfo viewportState; viewportState
+    auto viewportState = vk::PipelineViewportStateCreateInfo {}
         .setViewports(vk::Viewport {}
             .setX(0.f)
             .setY(0.f)
@@ -232,14 +235,39 @@ void MATERIAL::createPipeline() {
         .setPViewportState(&viewportState)
         .setRenderPass(r_engine.m_renderPass)
         .setStages(stages)
-        .setSubpass(getSubpassIndex())
+        .setSubpass(0)
         ;
+    
+    modifyPipelineCreateInfo(createInfo);
 
     auto pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
-
     vk::resultCheck(pipelineResultValue.result, "Failed to create pipeline");
-
     m_pipeline = pipelineResultValue.value[0];
+
+    if (shouldCreateShadowMappingPipeline()) {
+        colorBlendState
+            .setAttachments({})
+            ;
+
+        createInfo
+            .setRenderPass(r_engine.m_shadowMappingRenderPass)
+            .setSubpass(0)
+            ;
+        
+        rasterizationState
+            .setDepthBiasEnable(true)
+            .setDepthBiasConstantFactor(5.f)
+            .setCullMode(vk::CullModeFlagBits::eNone)
+            .setDepthBiasSlopeFactor(5.f)
+            ;
+        
+        stages.erase(++stages.begin());
+        createInfo.setStages(stages);
+
+        pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
+        vk::resultCheck(pipelineResultValue.result, "Failed to create shadow mapping pipeline");
+        m_shadowMappingPipeline = pipelineResultValue.value[0];
+    }
 }
 
 MATERIAL_TEMPLATE
@@ -250,6 +278,11 @@ void MATERIAL::bindUniform(vk::CommandBuffer cmd, UniformType& uniform) {
 MATERIAL_TEMPLATE
 void MATERIAL::bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index) {
     uniform.bind(cmd, m_pipelineLayout, index);
+}
+
+MATERIAL_TEMPLATE
+void MATERIAL::bindShadowMapPipeline(vk::CommandBuffer cmd) {
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_shadowMappingPipeline);
 }
 
 MATERIAL_TEMPLATE
@@ -272,6 +305,8 @@ void MATERIAL::cleanup() {
     r_engine.m_device.destroyShaderModule(m_fragmentShader);
     r_engine.m_device.destroyPipeline(m_pipeline);
     r_engine.m_device.destroyPipelineLayout(m_pipelineLayout);
+
+    if (shouldCreateShadowMappingPipeline()) r_engine.m_device.destroyPipeline(m_shadowMappingPipeline);
 }
 
 #undef MATERIAL_TEMPLATE

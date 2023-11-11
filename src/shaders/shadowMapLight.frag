@@ -9,15 +9,21 @@ layout(location = 5) flat in uint v_type;
 
 layout(location = 0) out vec4 f_emissive;
 
-layout(set = 1, binding = 0, input_attachment_index = 0) uniform subpassInput depthTex;
-layout(set = 1, binding = 1, input_attachment_index = 1) uniform subpassInput albedoTex;
-layout(set = 1, binding = 2, input_attachment_index = 2) uniform subpassInput normalTex;
-layout(set = 1, binding = 3, input_attachment_index = 3) uniform subpassInput armTex;
-
 layout(set = 0, binding = 0) uniform Camera {
     mat4 view;
     mat4 perspective;
 } camera;
+
+layout(set = 1, binding = 0) uniform sampler2D depthTex;
+layout(set = 1, binding = 1) uniform LightView {
+    mat4 view;
+    mat4 perspective;
+} lightView;
+
+layout(set = 2, binding = 0, input_attachment_index = 0) uniform subpassInput i_depth;
+layout(set = 2, binding = 1, input_attachment_index = 1) uniform subpassInput i_albedo;
+layout(set = 2, binding = 2, input_attachment_index = 2) uniform subpassInput i_normal;
+layout(set = 2, binding = 3, input_attachment_index = 3) uniform subpassInput i_arm;
 
 #define AMBIENT 0
 #define DIRECTIONAL 1
@@ -30,14 +36,15 @@ float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3 fresnelSchlick(float cosTheta, vec3 F0);
+float pcfFilter(vec4 worldPos, float filterSize, int filterSteps);
 
 void main() {
-    float depth = subpassLoad(depthTex).r;
-    vec3 albedo = subpassLoad(albedoTex).rgb;
-    vec3 normal = subpassLoad(normalTex).rgb;
-    vec3 arm = subpassLoad(armTex).rgb;
+    float depth = subpassLoad(i_depth).r;
+    vec3 albedo = subpassLoad(i_albedo).rgb;
+    vec3 normal = subpassLoad(i_normal).rgb;
+    vec3 arm = subpassLoad(i_arm).rgb;
 
-    float ao = arm.r; ao = 1.0;
+    float ao = arm.r;
     float roughness = arm.g;
     float metallness = arm.b;
 
@@ -52,13 +59,16 @@ void main() {
     vec4 viewSpace = vec4(v_screenCoord, depth, 1);
     vec4 worldPos = inverseView * inversePerspective * viewSpace;
     worldPos /= worldPos.w;
+    
+    float shadow = pcfFilter(worldPos, 2, 10);
+    if (shadow <= 0) return;
 
     vec4 camPos = inverseView * vec4(0, 0, 0, 1);
 
     vec3 lightPositionDelta = v_position - worldPos.xyz;
     vec3 lightDirection;
     switch (v_type) {
-    case DIRECTIONAL: lightDirection = -normalize(v_direction); break;
+    case DIRECTIONAL: lightDirection = normalize(v_direction); break;
     case POINT: case SPOT: lightDirection = -normalize(lightPositionDelta); break;
     }
 
@@ -72,11 +82,11 @@ void main() {
         break;
     case SPOT:
         dist = length(lightPositionDelta);
-        float angleFalloff = dot(lightDirection, v_direction);
-        angleFalloff = clamp((angleFalloff - 1.0) / (1.0 - cos(v_angle)) + 1.0, 0.0, 1.0);
-        radiance = v_colour * angleFalloff * angleFalloff / (dist * dist);
+        float theta = dot(lightDirection, normalize(v_direction));
+        radiance = v_colour * clamp(theta / cos(v_angle) - 1.0, 0.0, 1.0) / (dist * dist);
         break;
     }
+    radiance *= shadow;
 
     vec3 F0 = mix(vec3(0.04), albedo, metallness);
 
@@ -96,12 +106,11 @@ void main() {
     vec3 specular = numerator / denominator;
     
     float NdotL = max(dot(normal, lightDirection), 0.0);
-    vec3 illumination = (kD * albedo / PI + specular) * radiance * NdotL;
+    vec3 illumination = (kD * ao * albedo / PI + specular) * radiance * NdotL;
 
     vec3 colour = illumination;
 
     colour = colour / (colour + vec3(1.0));
-    colour = pow(colour, vec3(1.0 / 1.0));
    
     f_emissive = vec4(colour, 1.0);
 }
@@ -140,5 +149,24 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+float pcfFilter(vec4 worldPos, float filterSize, int filterSteps) {
+    vec4 lightClipSpace = lightView.perspective * lightView.view * worldPos;
+    lightClipSpace /= lightClipSpace.w;
+    lightClipSpace.xy = lightClipSpace.xy * 0.5 + 0.5;
+
+    vec2 texel = 1.0 / textureSize(depthTex, 0);
+    float totalCount = 0, closerCount = 0;
+
+    vec2 offset;
+    for (offset.x = -filterSize; offset.x <= filterSize; offset.x += filterSize / filterSteps)
+    for (offset.y = -filterSize; offset.y <= filterSize; offset.y += filterSize / filterSteps) {
+        float shadowMapDepth = texture(depthTex, lightClipSpace.xy + offset * texel).r;
+        if (lightClipSpace.z > shadowMapDepth) closerCount++;
+        totalCount++;
+    }
+
+    return 1.0 - (closerCount / totalCount);
 }
 

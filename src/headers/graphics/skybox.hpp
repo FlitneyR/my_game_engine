@@ -20,6 +20,8 @@ public:
         Material(engine, vertexShader, fragmentShader)
     {}
 
+    bool shouldCreateShadowMappingPipeline() override { return false; }
+
     vk::PipelineDepthStencilStateCreateInfo getDepthStencilState() override {
         return vk::PipelineDepthStencilStateCreateInfo {}
             .setDepthTestEnable(false)

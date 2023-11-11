@@ -79,6 +79,8 @@ public:
     std::vector<vk::Fence> m_commandBufferReadyFences;
 
     vk::RenderPass m_renderPass;
+    vk::RenderPass m_shadowMappingRenderPass;
+
     vk::CommandPool m_commandPool;
     std::vector<vk::CommandBuffer> m_commandBuffers;
 
@@ -114,6 +116,7 @@ public:
     void createSynchronisers();
     void createDepthBuffer();
     void createRenderPass();
+    void createShadowMappingRenderPass();
     void createGBufferDescriptorSetLayout();
     void createGBuffer();
     void createGBufferDescriptorSet();
@@ -134,6 +137,8 @@ public:
     vk::ShaderModule compileShaderModule(std::vector<uint32_t>& code);
 
     virtual void start() {}
+    virtual void renderShadowMaps(vk::CommandBuffer cmd) {}
+    virtual void recordShadowMapDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordGBufferDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}

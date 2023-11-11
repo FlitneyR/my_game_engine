@@ -43,6 +43,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     createSynchronisers();
     createDepthBuffer();
     createRenderPass();
+    createShadowMappingRenderPass();
     createGBufferDescriptorSetLayout();
     createGBuffer();
     createFramebuffers();
@@ -226,10 +227,13 @@ void Engine::createLogicalDevice() {
             ,
     };
 
+    auto features = m_physicalDevice.getFeatures();
+
     auto createInfo = vk::DeviceCreateInfo {}
         .setPEnabledLayerNames(requiredLayers)
         .setPEnabledExtensionNames(requiredExtensions)
         .setQueueCreateInfos(queueCreateInfos)
+        .setPEnabledFeatures(&features)
         ;
     
     m_device = m_physicalDevice.createDevice(createInfo);
@@ -433,9 +437,9 @@ void Engine::createDepthBuffer() {
 
 void Engine::createRenderPass() {
     auto renderTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eTransferDstOptimal)
         .setFormat(m_swapchainFormat.format)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -444,9 +448,9 @@ void Engine::createRenderPass() {
         ;
 
     auto depthTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
         .setFormat(m_depthImageFormat)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eDontCare)
@@ -455,9 +459,9 @@ void Engine::createRenderPass() {
         ;
 
     auto albedoTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_albedoFormat)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -466,9 +470,9 @@ void Engine::createRenderPass() {
         ;
 
     auto normalTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_normalFormat)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -477,9 +481,9 @@ void Engine::createRenderPass() {
         ;
 
     auto armTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_armFormat)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -488,9 +492,9 @@ void Engine::createRenderPass() {
         ;
 
     auto emissiveTarget = vk::AttachmentDescription {}
+        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setFormat(m_emissiveFormat)
-        .setInitialLayout(vk::ImageLayout::eUndefined)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -547,7 +551,7 @@ void Engine::createRenderPass() {
     
     auto emissiveAttachment = vk::AttachmentReference {}
         .setAttachment(5)
-        .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLayout(vk::ImageLayout::eGeneral)
         ;
     
     auto depthAttachment = vk::AttachmentReference {}
@@ -565,6 +569,11 @@ void Engine::createRenderPass() {
             .setColorAttachments(emissiveAttachment)
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setInputAttachments(lightingAttachments)
+            ,
+        vk::SubpassDescription {}
+            .setColorAttachments(emissiveAttachment)
+            .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+            .setInputAttachments(emissiveAttachment)
             ,
         };
     
@@ -597,6 +606,23 @@ void Engine::createRenderPass() {
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             ,
+        vk::SubpassDependency {}
+            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+            .setDstSubpass(1)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests
+                           | vk::PipelineStageFlagBits::eLateFragmentTests)
+            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            ,
+        vk::SubpassDependency {} // self dependency for post processing pass
+            .setSrcSubpass(1)
+            .setDstSubpass(2)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+            .setSrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
+            .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
     };
 
     auto createInfo = vk::RenderPassCreateInfo {}
@@ -606,6 +632,54 @@ void Engine::createRenderPass() {
         ;
     
     m_renderPass = m_device.createRenderPass(createInfo);
+}
+
+void Engine::createShadowMappingRenderPass() {
+    auto depthStencilAttachment = vk::AttachmentReference {}
+        .setAttachment(0)
+        .setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
+        ;
+
+    auto subpasses = vk::SubpassDescription {}
+        .setPDepthStencilAttachment(&depthStencilAttachment)
+        .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+        ;
+
+    auto dependencies = std::vector<vk::SubpassDependency> {
+        vk::SubpassDependency {}
+            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+            .setDstSubpass(0)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setDstStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests 
+                           | vk::PipelineStageFlagBits::eLateFragmentTests)
+            .setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            ,
+        vk::SubpassDependency {}
+            .setSrcSubpass(0)
+            .setDstSubpass(VK_SUBPASS_EXTERNAL)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests
+                           | vk::PipelineStageFlagBits::eLateFragmentTests)
+            .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            ,
+        };
+
+    m_shadowMappingRenderPass = m_device.createRenderPass(vk::RenderPassCreateInfo {}
+        .setAttachments(vk::AttachmentDescription {}
+            .setInitialLayout(vk::ImageLayout::eUndefined)
+            .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            .setFormat(m_depthImageFormat)
+            .setLoadOp(vk::AttachmentLoadOp::eClear)
+            .setStoreOp(vk::AttachmentStoreOp::eStore)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+            .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+            )
+        .setSubpasses(subpasses)
+        .setDependencies(dependencies)
+        );
 }
 
 vk::ShaderModule Engine::loadShaderModule(std::string path) {
@@ -826,14 +900,14 @@ void Engine::draw() {
     
     auto imageIndex = nextImageResult.value;
 
-    auto now = std::chrono::high_resolution_clock::now();
-
     vk::CommandBuffer cmd = m_commandBuffers[m_currentInFlightFrame];
 
     cmd.reset();
 
     vk::CommandBufferBeginInfo beginInfo;
     cmd.begin(beginInfo);
+
+    renderShadowMaps(cmd);
 
     auto viewport = vk::Viewport {}
         .setX(0.f)
@@ -886,6 +960,8 @@ void Engine::draw() {
     recordGBufferDrawCommands(cmd);
     cmd.nextSubpass(vk::SubpassContents::eInline);
     recordLightingDrawCommands(cmd);
+    cmd.nextSubpass(vk::SubpassContents::eInline);
+    recordPostProcessingDrawCommands(cmd);
 
     cmd.endRenderPass();
 
@@ -1014,6 +1090,7 @@ void Engine::cleanup() {
         m_device.destroyImageView(imageView);
     
     m_device.destroyRenderPass(m_renderPass);
+    m_device.destroyRenderPass(m_shadowMappingRenderPass);
 
     for (auto& framebuffer : m_framebuffers)
         m_device.destroyFramebuffer(framebuffer);

@@ -8,7 +8,17 @@ VULKAN_SDK_LIB_PATH = /Users/flitneyr/VulkanSDK/1.3.261.1/macOS/lib
 
 MAIN_DEPENDENCIES = build/engine.o build/objloader.o build/instance.o
 
-COMPILED_SHADERS = build/mvp.vert.spv build/pbr.frag.spv build/skybox.vert.spv build/skybox.frag.spv build/bullet.vert.spv build/bullet.frag.spv build/fullscreenLight.vert.spv build/fullscreenLight.frag.spv
+COMPILED_SHADERS = build/mvp.vert.spv \
+				   build/pbr.frag.spv \
+				   build/skybox.vert.spv \
+				   build/skybox.frag.spv \
+				   build/bullet.vert.spv \
+				   build/bullet.frag.spv \
+				   build/fullscreenLight.vert.spv \
+				   build/light.frag.spv \
+				   build/shadowMapLight.frag.spv \
+				   build/fullscreen.vert.spv \
+				#    build/hdrColourCorrection.frag.spv
 
 # bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
 main: bin/main shaders

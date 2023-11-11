@@ -29,10 +29,16 @@ class Game : public mge::Engine {
     std::vector<std::unique_ptr<Model::Mesh>> m_meshes;
     std::vector<std::unique_ptr<Model::Material::Instance>> m_materialInstances;
 
-    std::unique_ptr<mge::Light> m_light;
     std::unique_ptr<mge::Light::Mesh> m_lightMesh;
+
+    std::unique_ptr<mge::Light> m_light;
     std::unique_ptr<mge::LightMaterial> m_lightMaterial;
     std::unique_ptr<mge::Light::Material::Instance> m_lightMaterialInstance;
+
+    mge::LightInstance* m_shadowMappedLightInstance;
+    std::unique_ptr<mge::ShadowMappedLight> m_shadowMappedLight;
+    std::unique_ptr<mge::ShadowMappedLightMaterial> m_shadowMappedLightMaterial;
+    std::unique_ptr<mge::ShadowMappedLight::Material::Instance> m_shadowMappedLightMaterialInstance;
 
     std::vector<std::string> m_modelNames {
         "Arches",
@@ -60,7 +66,7 @@ class Game : public mge::Engine {
         "Windows",
     };
 
-    std::unique_ptr<mge::Camera> m_camera;
+    std::unique_ptr<mge::Camera> m_camera, m_shadowMapView;
     mge::ecs::Entity m_cameraEntity;
     
     void start() override {
@@ -69,7 +75,8 @@ class Game : public mge::Engine {
         m_ecsManager.addSystem("Light", &m_lightSystem);
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
-            loadShaderModule("build/mvp.vert.spv"), loadShaderModule("build/pbr.frag.spv"));
+            loadShaderModule("build/mvp.vert.spv"),
+            loadShaderModule("build/pbr.frag.spv"));
 
         m_models.reserve(m_modelNames.size());
 
@@ -79,7 +86,7 @@ class Game : public mge::Engine {
 
             mge::Texture
                 albedoTexture(("assets/sponza/" + modelName + "Albedo.png").c_str()),
-                armTexture(("assets/sponza/" + modelName + "ARM.png").c_str(), vk::Format::eR8G8B8A8Unorm),
+                armTexture(("assets/sponza/" + modelName + "ARM.png").c_str()), //, vk::Format::eR8G8B8A8Unorm),
                 normalTexture(("assets/sponza/" + modelName + "Normal.png").c_str(), vk::Format::eR8G8B8A8Unorm);
 
             materialInstance->setup({ albedoTexture, armTexture, normalTexture });
@@ -100,16 +107,26 @@ class Game : public mge::Engine {
         }
 
         m_lightMesh = std::make_unique<mge::Light::Mesh>(mge::makeFullScreenQuad(*this));
+
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/fullscreenLight.frag.spv"));
+            loadShaderModule("build/fullscreenLight.vert.spv"),
+            loadShaderModule("build/light.frag.spv"));
         m_lightMaterialInstance = std::make_unique<mge::Light::Material::Instance>(m_lightMaterial->makeInstance());
         m_lightMaterialInstance->setup();
 
         m_light = std::make_unique<mge::Light>(*this, *m_lightMesh, *m_lightMaterial, *m_lightMaterialInstance);
 
+        m_shadowMappedLightMaterial = std::make_unique<mge::ShadowMappedLightMaterial>(*this,
+            loadShaderModule("build/fullscreenLight.vert.spv"),
+            loadShaderModule("build/shadowMapLight.frag.spv"));
+        m_shadowMappedLightMaterialInstance = std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance());
+        m_shadowMappedLightMaterialInstance->setup(1024, 1024);
+
+        m_shadowMappedLight = std::make_unique<mge::ShadowMappedLight>(*this, *m_lightMesh, *m_shadowMappedLightMaterial, *m_shadowMappedLightMaterialInstance);
+
         m_lightSystem.r_light = m_light.get();
 
-        {
+        {   // ambient light entity
             auto entity = m_ecsManager.makeEntity();
             m_lightSystem.addComponent(entity);
             auto ambientLight = m_lightSystem.getInstance(entity);
@@ -117,27 +134,41 @@ class Game : public mge::Engine {
             ambientLight->m_colour = glm::vec3 { 0.1f };
         }
 
-        {
-            auto entity = m_ecsManager.makeEntity();
-            m_lightSystem.addComponent(entity);
-            auto sunDirectionalLight = m_lightSystem.getInstance(entity);
-            sunDirectionalLight->m_type = sunDirectionalLight->e_directional;
-            sunDirectionalLight->m_colour = glm::vec3 { 1.f };
+        // {   // sun light
+        //     auto entity = m_ecsManager.makeEntity();
+        //     m_lightSystem.addComponent(entity);
+        //     auto sunDirectionalLight = m_lightSystem.getInstance(entity);
+        //     sunDirectionalLight->m_type = sunDirectionalLight->e_directional;
+        //     sunDirectionalLight->m_colour = glm::vec3 { 1.f, 2.f, 3.f } / 3.f;
 
-            auto transform = m_transformSystem.getComponent(entity);
-            // transform->setPosition({ 0.f, 0.f, 2.f });
-            transform->setRotation(glm::angleAxis(glm::radians(75.f), glm::vec3 { 3.f, 1.f, 0.f }));
-        }
+        //     auto transform = m_transformSystem.getComponent(entity);
+        //     // transform->setPosition({ 0.f, 0.f, 2.f });
+        //     transform->setRotation(glm::angleAxis(glm::radians(75.f), glm::normalize(glm::vec3 { 3.f, 1.f, 0.f })));
+        // }
 
-        std::vector<glm::vec3> colours { { 1.f, 0.f, 0.f }, { 0.f, 1.f, 0.f }, { 0.f, 0.f, 1.f } };
+        m_shadowMappedLightInstance = &m_shadowMappedLight->getInstance(m_shadowMappedLight->makeInstance());
+        // m_shadowMappedLightInstance->m_type = mge::LightInstance::e_directional;
+        // m_shadowMappedLightInstance->m_position = glm::vec3 { 0.f, 0.f, 0.f };
+        // m_shadowMappedLightInstance->m_direction = glm::vec3 { -2.f, 1.f, -5.f };
+        // m_shadowMappedLightInstance->m_colour = glm::vec3 { 2.f, 1.5f, 1.f } * 15.f;
+        // m_shadowMappedLightInstance->m_angle = 30.f;
+        m_shadowMappedLightInstance->m_type = mge::LightInstance::e_spot;
+        m_shadowMappedLightInstance->m_position = glm::vec3 { 8.f, 5.f, 2.f };
+        m_shadowMappedLightInstance->m_angle = glm::radians(60.f);
+        m_shadowMappedLightInstance->m_near = 0.01f;
+        m_shadowMappedLightInstance->m_far = 500.f;
+        m_shadowMappedLightInstance->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
+        m_shadowMappedLightInstance->m_direction = glm::vec3 { 0.f, -1.f, -1.f };
+
+        std::vector<glm::vec3> colours { { 1.f, 0.1f, 0.1f }, { 0.1f, 1.f, 0.1f }, { 0.1f, 0.1f, 1.f } };
         int index = 0;
 
-        for (int i = -1; i <= 1; i++) {
+        for (int i = -1; i <= 1; i++) { // point lights
             auto entity = m_ecsManager.makeEntity();
             m_lightSystem.addComponent(entity);
             auto pointLight = m_lightSystem.getInstance(entity);
             pointLight->m_type = pointLight->e_point;
-            pointLight->m_colour = colours[index++] * 50.f;
+            pointLight->m_colour = colours[index++] * 10.f;
 
             m_transformSystem.getComponent(entity)
                 ->setPosition(glm::vec3 { 5.f * i, 0.f, 2.f });
@@ -150,12 +181,19 @@ class Game : public mge::Engine {
         m_camera->m_position = glm::vec3 { 0.f, 0.f, 2.f };
         m_camera->m_forward = glm::vec3 { 1.f, 0.f, 0.f };
         m_camera->m_up = glm::vec3 { 0.f, 0.f, 1.f };
+        
+        m_shadowMapView = std::make_unique<mge::Camera>(*this);
 
         m_camera->setup();
+        m_shadowMapView->setup();
 
         m_lightMaterial->setup();
+        m_shadowMappedLightMaterial->setup();
+
         m_lightMesh->setup();
+
         m_light->setup();
+        m_shadowMappedLight->setup();
 
         m_modelMaterial->setup();
     }
@@ -167,6 +205,7 @@ class Game : public mge::Engine {
         m_modelSystem.updateTransforms();
         m_lightSystem.updateTransforms();
         m_light->updateInstanceBuffer();
+        m_shadowMappedLight->updateInstanceBuffer();
         for (auto& model : m_models) model->updateInstanceBuffer();
     }
 
@@ -216,6 +255,31 @@ class Game : public mge::Engine {
         m_camera->m_up = cameraTransform->getUp();
     }
 
+    void renderShadowMaps(vk::CommandBuffer cmd) override {
+        static bool hasRendered = false;
+
+        if (!hasRendered) {
+            m_shadowMappedLightMaterialInstance->beginRenderPass(cmd);
+            m_shadowMappedLightInstance->getView(*m_shadowMapView);
+            m_shadowMapView->updateBuffer();
+            m_shadowMappedLightMaterialInstance->updateViewBuffer(*m_shadowMapView);
+            recordShadowMapDrawCommands(cmd);
+            cmd.endRenderPass();
+
+            hasRendered = true;
+        }
+    }
+
+    void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
+        m_modelMaterial->bindShadowMapPipeline(cmd);
+        m_modelMaterial->bindUniform(cmd, *m_shadowMapView);
+
+        for (int i = 0; i < m_models.size(); i++) {
+            m_modelMaterial->bindInstance(cmd, *m_materialInstances[i]);
+            m_models[i]->drawInstances(cmd);
+        }
+    }
+
     void recordGBufferDrawCommands(vk::CommandBuffer cmd) override {
         m_modelMaterial->bindPipeline(cmd);
         m_modelMaterial->bindUniform(cmd, *m_camera);
@@ -229,10 +293,28 @@ class Game : public mge::Engine {
     void recordLightingDrawCommands(vk::CommandBuffer cmd) override {
         m_lightMaterial->bindPipeline(cmd);
         m_light->drawInstances(cmd);
+
+        // cmd.pipelineBarrier(
+        //     vk::PipelineStageFlagBits::eLateFragmentTests,
+        //     vk::PipelineStageFlagBits::eFragmentShader,
+        //     {}, {}, {},
+        //     vk::ImageMemoryBarrier {}
+        //         .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+        //         .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+        //         .setSrcQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        //         .setDstQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
+        //         .setOldLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
+        //         .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        //         .setImage(m_shadowMappedLightMaterialInstance->m_image)
+        //     );
+        
+        m_shadowMappedLightMaterial->bindPipeline(cmd);
+        m_shadowMappedLight->drawInstances(cmd);
     }
 
     void end() override {
         m_camera->cleanup();
+        m_shadowMapView->cleanup();
 
         for (auto& mesh : m_meshes) mesh->cleanup();
         for (auto& model : m_models) model->cleanup();
@@ -240,8 +322,14 @@ class Game : public mge::Engine {
         m_modelMaterial->cleanup();
 
         m_lightMesh->cleanup();
+
         m_light->cleanup();
+        m_shadowMappedLight->cleanup();
+
         m_lightMaterialInstance->cleanup();
+        m_shadowMappedLightMaterialInstance->cleanup();
+
         m_lightMaterial->cleanup();
+        m_shadowMappedLightMaterial->cleanup();
     }
 };

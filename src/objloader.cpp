@@ -226,7 +226,7 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
     std::vector<glm::vec3> tangents(vertices.size()), bitangents(vertices.size());
     std::vector<float> denominators(vertices.size());
 
-    for (int i = 0, j = 1, k = 2; k < indices.size(); i = ++k, j = ++k, ++k) {
+    for (int i = 0, j = 1, k = 2; k < indices.size(); i = ++k, j = ++k, k = ++k) {
         int I = indices[i], J = indices[j], K = indices[k];
 
         ModelVertex vi = vertices[I], vj = vertices[J], vk = vertices[K];
@@ -234,8 +234,8 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
         glm::vec3 jDeltaPosition = vj.m_position - vi.m_position;
         glm::vec3 kDeltaPosition = vk.m_position - vi.m_position;
         
-        glm::vec2 jDeltaUV = vj.m_texcoord - vi.m_texcoord; jDeltaUV.y *= -1;
-        glm::vec2 kDeltaUV = vk.m_texcoord - vi.m_texcoord; kDeltaUV.y *= -1;
+        glm::vec2 jDeltaUV = vj.m_texcoord - vi.m_texcoord;
+        glm::vec2 kDeltaUV = vk.m_texcoord - vi.m_texcoord;
 
         /*
         
@@ -244,13 +244,23 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
 
         therefore:
 
-        [ jDeltaPosition ] = [ jDeltaUV.x, jDeltaUV.y ] [ tangent   ]
-        [ kDeltaPosition ]   [ kDeltaUV.x, kDeltaUV.y ] [ bitangent ]
+        [ jDeltaPosition.x kDeltaPosition.x ]   [ tangent.x bitangent.x ]   [ jDeltaUV.x kDeltaUV.x ]
+        [ jDeltaPosition.y kDeltaPosition.y ] = [ tangent.y bitangent.y ] * [ jDeltaUV.y kDeltaUV.y ]
+        [ jDeltaPosition.z kDeltaPosition.z ]   [ tangent.z bitangent.z ]
+
+        therefore:
+
+        [ tangent.x bitangent.x ]   [ jDeltaPosition.x kDeltaPosition.x ]   [ jDeltaUV.x kDeltaUV.x ] ^-1
+        [ tangent.y bitangent.y ] = [ jDeltaPosition.y kDeltaPosition.y ] * [ jDeltaUV.y kDeltaUV.y ]
+        [ tangent.z bitangent.z ]   [ jDeltaPosition.z kDeltaPosition.z ]
 
         */
 
         glm::mat2x3 m = glm::mat2x3 { jDeltaPosition, kDeltaPosition } * glm::inverse(glm::mat2 { jDeltaUV, kDeltaUV });
-        glm::vec3 tangent = m[0], bitangent = m[1];
+        glm::vec3 tangent = glm::normalize(m[0]), bitangent = glm::normalize(m[1]);
+
+        // catch a potential error when all the vertices are in-line
+        if (tangent != tangent || bitangent != bitangent) continue;
 
         tangents[I] += tangent; bitangents[I] += bitangent; denominators[I] += 1.0f;
         tangents[J] += tangent; bitangents[J] += bitangent; denominators[J] += 1.0f;
@@ -258,8 +268,8 @@ Mesh<ModelVertex> loadObjMesh(Engine& engine, const char* filename) {
     }
 
     for (int index = 0; index < vertices.size(); index++) {
-        vertices[index].m_tangent = tangents[index] / denominators[index];
-        vertices[index].m_bitangent = bitangents[index] / denominators[index];
+        vertices[index].m_tangent = glm::normalize(tangents[index] / std::max(denominators[index], 1.f));
+        vertices[index].m_bitangent = glm::normalize(bitangents[index] / std::max(denominators[index], 1.f));
     }
 
     return Mesh<ModelVertex>(engine, vertices, indices);

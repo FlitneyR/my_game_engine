@@ -37,7 +37,10 @@ public:
     void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout, int index);
 
     void cleanup() {
-        r_engine->m_device.destroyDescriptorSetLayout(s_descriptorSetLayout);
+        if (s_descriptorSetLayout) {
+            r_engine->m_device.destroyDescriptorSetLayout(s_descriptorSetLayout);
+            s_descriptorSetLayout = nullptr;
+        }
 
         for (auto& buffer : m_buffers)
             r_engine->m_device.destroyBuffer(buffer);
@@ -168,8 +171,7 @@ void Uniform<UniformData>::createDescriptorSets() {
 
 template<typename UniformData>
 void Uniform<UniformData>::bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout, int index) {
-    std::vector<uint32_t> offsets;
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, m_descriptorSets[index], offsets);
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, m_descriptorSets[index], {});
 }
 
 }

@@ -81,11 +81,22 @@ struct ModelTransformMeshInstance : public MeshInstanceBase {
 struct Texture {
     std::vector<uint8_t> m_data;
     uint32_t m_width, m_height, m_mipMapLevels = 1;
-    vk::Format m_format = vk::Format::eR8G8B8A8Srgb;
+    vk::Format m_format;
+    vk::ImageUsageFlags m_specialUsage;
+
+    enum Type {
+        e_colour, e_depth
+    } m_type = e_colour;
 
     Texture() = default;
 
-    Texture(const char* filename, vk::Format format = vk::Format::eR8G8B8A8Srgb, bool generateMipMaps = true) : m_format(format) {
+    Texture(uint32_t width, uint32_t height, vk::Format format, vk::ImageUsageFlags specialUsage, Type type) :
+        m_width(width), m_height(height), m_format(format), m_specialUsage(specialUsage), m_type(type)
+    {}
+
+    Texture(const char* filename, vk::Format format = vk::Format::eR8G8B8A8Srgb, bool generateMipMaps = true) :
+        m_format(format)
+    {
         int channels, width, height;
         uint8_t* data = stbi_load(filename, &width, &height, &channels, 4);
 
@@ -195,10 +206,11 @@ void NTEXTURE_MATERIAL_INSTANCE::setupImages() {
             .setSamples(vk::SampleCountFlagBits::e1)
             .setSharingMode(vk::SharingMode::eExclusive)
             .setTiling(vk::ImageTiling::eOptimal)
-            .setUsage(vk::ImageUsageFlagBits::eStorage
-                    | vk::ImageUsageFlagBits::eSampled
+            .setUsage(//vk::ImageUsageFlagBits::eStorage
+                      vk::ImageUsageFlagBits::eSampled
                     | vk::ImageUsageFlagBits::eTransferSrc
-                    | vk::ImageUsageFlagBits::eTransferDst)
+                    | vk::ImageUsageFlagBits::eTransferDst
+                    | texture.m_specialUsage)
             .setExtent(vk::Extent3D {}
                 .setWidth(texture.m_width)
                 .setHeight(texture.m_height)
@@ -210,12 +222,18 @@ void NTEXTURE_MATERIAL_INSTANCE::setupImages() {
 NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::setupImageViews() {
     for (int i = 0; i < N; i++) {
+        vk::ImageAspectFlags aspectMask;
+        switch (m_textures[i].m_type) {
+        case Texture::e_colour: aspectMask = vk::ImageAspectFlagBits::eColor; break;
+        case Texture::e_depth: aspectMask = vk::ImageAspectFlagBits::eDepth; break;
+        }
+
         m_imageViews[i] = r_engine->m_device.createImageView(vk::ImageViewCreateInfo {}
             .setFormat(m_textures[i].m_format)
             .setImage(m_images[i])
             .setViewType(vk::ImageViewType::e2D)
             .setSubresourceRange(vk::ImageSubresourceRange {}
-                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setAspectMask(aspectMask)
                 .setBaseArrayLayer(0)
                 .setBaseMipLevel(0)
                 .setLayerCount(1)
@@ -226,9 +244,9 @@ void NTEXTURE_MATERIAL_INSTANCE::setupImageViews() {
 
 NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::setupSamplers() {
-    for (int i = 0; i < N; i++) {
-        auto properties = r_engine->m_physicalDevice.getProperties();
+    auto properties = r_engine->m_physicalDevice.getProperties();
 
+    for (int i = 0; i < N; i++) {
         m_samplers[i] = r_engine->m_device.createSampler(vk::SamplerCreateInfo {}
             .setAddressModeU(vk::SamplerAddressMode::eRepeat)
             .setAddressModeV(vk::SamplerAddressMode::eRepeat)
@@ -238,6 +256,7 @@ void NTEXTURE_MATERIAL_INSTANCE::setupSamplers() {
             .setMinLod(0)
             .setMaxLod(m_textures[i].m_mipMapLevels)
             .setMaxAnisotropy(properties.limits.maxSamplerAnisotropy)
+            .setAnisotropyEnable(r_engine->m_physicalDevice.getFeatures().samplerAnisotropy)
             );
     }
 }
@@ -246,10 +265,11 @@ NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
     for (int i = 0; i < N; i++) {
         auto memReqs = r_engine->m_device.getImageMemoryRequirements(m_images[i]);
+        
+        vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
-        vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal
-                                           | vk::MemoryPropertyFlagBits::eHostVisible
-                                           ;
+        if (m_textures[i].m_data.size() > 0)
+            properties |= vk::MemoryPropertyFlagBits::eHostVisible;
 
         auto allocInfo = vk::MemoryAllocateInfo {}
             .setAllocationSize(memReqs.size)
@@ -263,7 +283,8 @@ void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
 
 NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::fillImages() {
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++)
+    if (m_textures[i].m_data.size() > 0) {
         void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[i], 0, m_textures[i].m_data.size());
         memcpy(mappedMemory, m_textures[i].m_data.data(), m_textures[i].m_data.size());
 
@@ -444,7 +465,8 @@ void NTEXTURE_MATERIAL_INSTANCE::transitionImageLayout() {
 
     cmd.begin(beginInfo);
 
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++)
+    if (m_textures[i].m_data.size() > 0) {
         auto imageBarrier = vk::ImageMemoryBarrier {}
             .setImage(m_images[i])
             .setOldLayout(vk::ImageLayout::eUndefined)

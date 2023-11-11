@@ -31,6 +31,12 @@ struct Camera : public Uniform<CameraUniformData> {
     float m_near;
     float m_far;
 
+    std::optional<glm::vec2> m_viewport;
+
+    enum ProjectionType {
+        e_perspective, e_orthographic
+    } m_projectionType;
+
     Camera(Engine& engine) {
         r_engine = &engine;
         m_forward = glm::vec3(0.f, 1.f, 0.f);
@@ -45,12 +51,28 @@ struct Camera : public Uniform<CameraUniformData> {
     CameraUniformData getUniformData() override {
         CameraUniformData result;
 
-        m_aspect = static_cast<float>(r_engine->m_swapchainExtent.width);
-        m_aspect /= static_cast<float>(r_engine->m_swapchainExtent.height);
+        glm::vec2 viewport;
+
+        if (m_viewport) {
+            viewport = *m_viewport;
+        } else {
+            viewport.x = r_engine->m_swapchainExtent.width;
+            viewport.y = r_engine->m_swapchainExtent.height;
+        }
+
+        m_aspect = viewport.x / viewport.y;
 
         result.m_view = glm::lookAt(m_position, m_position + m_forward, m_up);
-        result.m_projection = glm::perspective(m_fov, m_aspect, m_near, m_far);
-        // result.m_projection = glm::rotate(result.m_projection, glm::radians(180.f), glm::vec3(0.f, 0.f, 1.f));
+
+        switch (m_projectionType) {
+        case e_perspective:
+            result.m_projection = glm::perspective(m_fov, m_aspect, m_near, m_far);
+            break;
+        case e_orthographic:
+            result.m_projection = glm::ortho(-viewport.x / 2.f, viewport.x / 2.f, -viewport.y / 2.f, viewport.y / 2.f, m_near, m_far);
+            break;
+        }
+
         result.m_projection = glm::scale(result.m_projection, glm::vec3 { 1.f, -1.f, 1.f });
 
         return result;

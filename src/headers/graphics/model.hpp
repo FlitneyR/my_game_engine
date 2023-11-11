@@ -172,7 +172,6 @@ void MODEL::drawInstances(vk::CommandBuffer cmd) {
 
 MODEL_TEMPLATE
 void MODEL::drawInstances(vk::CommandBuffer cmd, int index) {
-    m_material->bindPipeline(cmd);
     m_material->bindInstance(cmd, m_materialInstance);
     m_mesh->bindBuffers(cmd);
     uint32_t offset = 0;
