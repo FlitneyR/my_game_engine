@@ -60,7 +60,7 @@ void main() {
     vec4 worldPos = inverseView * inversePerspective * viewSpace;
     worldPos /= worldPos.w;
     
-    float shadow = pcfFilter(worldPos, 2, 10);
+    float shadow = pcfFilter(worldPos, 1, 5);
     if (shadow <= 0) return;
 
     vec4 camPos = inverseView * vec4(0, 0, 0, 1);
@@ -108,9 +108,8 @@ void main() {
     float NdotL = max(dot(normal, lightDirection), 0.0);
     vec3 illumination = (kD * ao * albedo / PI + specular) * radiance * NdotL;
 
-    vec3 colour = illumination;
-
-    colour = colour / (colour + vec3(1.0));
+    vec3 colour = illumination / (illumination + 1.0);
+    // colour /= colour + 1.0;
    
     f_emissive = vec4(colour, 1.0);
 }

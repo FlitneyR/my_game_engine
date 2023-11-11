@@ -27,24 +27,26 @@ public:
 
     LightInstance(glm::vec3 colour = {}) : m_colour(colour) {}
 
-    void getView(mge::Camera& view) {
-        view.m_position = m_position;
-        view.m_forward = m_direction;
-        view.m_near = m_near;
-        view.m_far = m_far;
+    void updateShadowMapView(mge::Camera& shadowMapView) {
+        shadowMapView.m_position = m_position;
+        shadowMapView.m_forward = m_direction;
+        shadowMapView.m_near = m_near;
+        shadowMapView.m_far = m_far;
 
         switch (m_type) {
         case e_directional:
-            view.m_projectionType = view.e_orthographic;
-            view.m_viewport = glm::vec2 { m_angle, m_angle };
+            shadowMapView.m_projectionType = shadowMapView.e_orthographic;
+            shadowMapView.m_viewport = glm::vec2 { m_angle, m_angle };
             break;
         case e_spot:
-            view.m_projectionType = view.e_perspective;
-            view.m_fov = m_angle * 2.f;
-            view.m_viewport = std::nullopt;
+            shadowMapView.m_projectionType = shadowMapView.e_perspective;
+            shadowMapView.m_fov = m_angle * 2.f;
+            shadowMapView.m_viewport = std::nullopt;
             break;
         default: throw std::runtime_error("Cannot get shadow map view for this type of light");
         }
+
+        shadowMapView.updateBuffer();
     }
 
     static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes(uint32_t firstAvailableLocation) {
@@ -182,14 +184,17 @@ class ShadowMappedLightMaterialInstance : public MaterialInstanceBase {
 
 
 public:
+    mge::Camera m_shadowMapView;
 
     ShadowMappedLightMaterialInstance(Engine& engine) :
-        r_engine(&engine)
+        r_engine(&engine), m_shadowMapView(engine)
     {}
 
     static vk::DescriptorSetLayout s_descriptorSetLayout;
 
     void setup(uint32_t width, uint32_t height) {
+        m_shadowMapView.setup();
+
         m_texture = Texture(width, height,
             r_engine->m_depthImageFormat,
             vk::ImageUsageFlagBits::eDepthStencilAttachment,
@@ -216,6 +221,8 @@ public:
     }
 
     void cleanup() {
+        m_shadowMapView.cleanup();
+
         r_engine->m_device.destroyFramebuffer(m_framebuffer);
         r_engine->m_device.destroyImage(m_image);
         r_engine->m_device.destroyImageView(m_imageView);
@@ -231,10 +238,12 @@ public:
         }
     }
 
-    void updateViewBuffer(mge::Camera& viewCamera) {
+    void updateViewBuffer(LightInstance& lightInstance) {
+        lightInstance.updateShadowMapView(m_shadowMapView);
+
         void* buffer = r_engine->m_device.mapMemory(m_lightViewBufferMemory, {}, sizeof(mge::CameraUniformData));
 
-        auto data = viewCamera.getUniformData();
+        auto data = m_shadowMapView.getUniformData();
         memcpy(buffer, &data, sizeof(data));
 
         r_engine->m_device.unmapMemory(m_lightViewBufferMemory);

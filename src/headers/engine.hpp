@@ -7,6 +7,8 @@
 
 namespace mge {
 
+class Camera;
+
 class Engine {
 public:
     static const char* s_engineName;
@@ -138,7 +140,7 @@ public:
 
     virtual void start() {}
     virtual void renderShadowMaps(vk::CommandBuffer cmd) {}
-    virtual void recordShadowMapDrawCommands(vk::CommandBuffer cmd) {}
+    virtual void recordShadowMapDrawCommands(vk::CommandBuffer cmd, Camera& shadowMapView) {}
     virtual void recordGBufferDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}
