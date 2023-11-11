@@ -6,6 +6,10 @@ This is my attempt at a simple Vulkan-based game engine.
 
 - Asteroids game: https://youtu.be/uIyIgphtwv8
 
+## Screenshots
+
+![Shadow Mapping in Sponza Scene](screenshots/SponzaShadowMapping.png)
+
 ## Goal
 
 To create a simple game engine with the following features:
