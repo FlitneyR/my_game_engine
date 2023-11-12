@@ -38,7 +38,7 @@ public:
     virtual void bindUniform(vk::CommandBuffer cmd, UniformType& uniform, int index);
     virtual void bindPipeline(vk::CommandBuffer cmd);
     virtual void bindShadowMapPipeline(vk::CommandBuffer cmd);
-    void bindInstance(vk::CommandBuffer cmd, MaterialInstance instance);
+    void bindInstance(vk::CommandBuffer cmd, MaterialInstance& instance);
 
     virtual void cleanup();
 
@@ -291,7 +291,7 @@ void MATERIAL::bindPipeline(vk::CommandBuffer cmd) {
 }
 
 MATERIAL_TEMPLATE
-void MATERIAL::bindInstance(vk::CommandBuffer cmd, MaterialInstance instance) {
+void MATERIAL::bindInstance(vk::CommandBuffer cmd, MaterialInstance& instance) {
     instance.bind(cmd, m_pipelineLayout);
 }
 
