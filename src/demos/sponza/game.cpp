@@ -121,7 +121,7 @@ class Game : public mge::Engine {
             loadShaderModule("build/shadowMapLight.frag.spv"));
         
         m_shadowMappedLightMaterialInstances.push_back(std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance()));
-        m_shadowMappedLightMaterialInstances.back()->setup(1024, 1024);
+        m_shadowMappedLightMaterialInstances.back()->setup(2048, 2048);
         m_shadowMappedLights.push_back(std::make_unique<mge::ShadowMappedLight>(*this, *m_lightMesh, *m_shadowMappedLightMaterial, *m_shadowMappedLightMaterialInstances.back()));
 
         m_shadowMappedLightMaterialInstances.push_back(std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance()));

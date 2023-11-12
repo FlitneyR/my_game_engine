@@ -155,6 +155,11 @@ float pcfFilter(vec4 worldPos, float filterSize, int filterSteps) {
     lightClipSpace /= lightClipSpace.w;
     lightClipSpace.xy = lightClipSpace.xy * 0.5 + 0.5;
 
+    if (filterSize == 0) {
+        float shadowMapDepth = texture(depthTex, lightClipSpace.xy).r;
+        return float(lightClipSpace.z < shadowMapDepth);
+    }
+
     vec2 texel = 1.0 / textureSize(depthTex, 0);
     float totalCount = 0, closerCount = 0;
 
@@ -162,7 +167,7 @@ float pcfFilter(vec4 worldPos, float filterSize, int filterSteps) {
     for (offset.x = -filterSize; offset.x <= filterSize; offset.x += filterSize / filterSteps)
     for (offset.y = -filterSize; offset.y <= filterSize; offset.y += filterSize / filterSteps) {
         float shadowMapDepth = texture(depthTex, lightClipSpace.xy + offset * texel).r;
-        if (lightClipSpace.z > shadowMapDepth) closerCount++;
+        closerCount += float(lightClipSpace.z > shadowMapDepth);
         totalCount++;
     }
 

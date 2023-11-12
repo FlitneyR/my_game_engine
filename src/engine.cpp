@@ -32,7 +32,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
+    // glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
     m_window = glfwCreateWindow(initWidth, initHeight, getGameName().c_str(), nullptr, nullptr);
 
     createInstance();
@@ -436,21 +436,8 @@ void Engine::createDepthBuffer() {
 }
 
 void Engine::createRenderPass() {
-    auto renderTarget = vk::AttachmentDescription {}
+    auto templateAttachment = vk::AttachmentDescription {}
         .setInitialLayout(vk::ImageLayout::eUndefined)
-        .setFinalLayout(vk::ImageLayout::eTransferDstOptimal)
-        .setFormat(m_swapchainFormat.format)
-        .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
-        ;
-
-    auto depthTarget = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eUndefined)
-        .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
-        .setFormat(m_depthImageFormat)
         .setSamples(vk::SampleCountFlagBits::e1)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eDontCare)
@@ -458,48 +445,35 @@ void Engine::createRenderPass() {
         .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
 
-    auto albedoTarget = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eUndefined)
+    auto renderTarget = vk::AttachmentDescription { templateAttachment }
+        .setFinalLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setFormat(m_swapchainFormat.format)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+        ;
+
+    auto depthTarget = vk::AttachmentDescription { templateAttachment }
+        .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
+        .setFormat(m_depthImageFormat)
+        ;
+
+    auto albedoTarget = vk::AttachmentDescription { templateAttachment }
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_albedoFormat)
-        .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
 
-    auto normalTarget = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eUndefined)
+    auto normalTarget = vk::AttachmentDescription { templateAttachment }
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_normalFormat)
-        .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
 
-    auto armTarget = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eUndefined)
+    auto armTarget = vk::AttachmentDescription { templateAttachment }
         .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setFormat(m_armFormat)
-        .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
 
-    auto emissiveTarget = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eUndefined)
+    auto emissiveTarget = vk::AttachmentDescription { templateAttachment }
         .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setFormat(m_emissiveFormat)
-        .setSamples(vk::SampleCountFlagBits::e1)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
     
     std::vector<vk::AttachmentDescription> attachments {
@@ -606,7 +580,7 @@ void Engine::createRenderPass() {
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             ,
-        vk::SubpassDependency {}
+        vk::SubpassDependency {} // shadow map dependency
             .setSrcSubpass(VK_SUBPASS_EXTERNAL)
             .setDstSubpass(1)
             .setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests
@@ -615,7 +589,7 @@ void Engine::createRenderPass() {
             .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             ,
-        vk::SubpassDependency {} // self dependency for post processing pass
+        vk::SubpassDependency {} // post processing pass
             .setSrcSubpass(1)
             .setDstSubpass(2)
             .setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
