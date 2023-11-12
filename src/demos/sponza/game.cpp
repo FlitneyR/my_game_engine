@@ -250,6 +250,8 @@ class Game : public mge::Engine {
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
 
+        for (int i = 0; i < m_shadowMappedLights.size(); i++)
+            m_shadowMappedLightMaterialInstances[i]->updateViewBuffer(*m_shadowMappedLightInstances[i]);
         // static float time = 0.0;
         // time += deltaTime;
         // m_shadowMappedLightInstances[1]->m_direction.x = glm::cos(time);
@@ -262,7 +264,6 @@ class Game : public mge::Engine {
         if (!hasRendered) {
             for (int i = 0; i < m_shadowMappedLights.size(); i++) {
                 m_shadowMappedLightMaterialInstances[i]->beginRenderPass(cmd);
-                m_shadowMappedLightMaterialInstances[i]->updateViewBuffer(*m_shadowMappedLightInstances[i]);
                 recordShadowMapDrawCommands(cmd, m_shadowMappedLightMaterialInstances[i]->m_shadowMapView);
                 cmd.endRenderPass();
             }
