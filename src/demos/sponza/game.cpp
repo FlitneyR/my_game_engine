@@ -70,6 +70,11 @@ class Game : public mge::Engine {
     mge::ecs::Entity m_cameraEntity;
     
     void start() override {
+        glm::vec<2, int> windowSize;
+        glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
+        glfwSetCursorPos(m_window, windowSize.x / 2, windowSize.y / 2);
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
         m_ecsManager.addSystem("Model", &m_modelSystem);
         m_ecsManager.addSystem("Transform", &m_transformSystem);
         m_ecsManager.addSystem("Light", &m_lightSystem);
@@ -217,10 +222,17 @@ class Game : public mge::Engine {
         bool moveUp = glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS;
         bool moveDown = glfwGetKey(m_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
 
-        bool turnLeft = glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS;
-        bool turnRight = glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS;
-        bool turnUp = glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS;
-        bool turnDown = glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        static constexpr float MOUSE_SENSITIVITY = 0.005f;
+
+        glm::vec<2, double> mousePos;
+        glfwGetCursorPos(m_window, &mousePos.x, &mousePos.y);
+
+        glm::vec<2, int> windowSize;
+        glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
+        glm::vec<2, double> windowCentre = windowSize / 2;
+        glfwSetCursorPos(m_window, windowCentre.x, windowCentre.y);
+
+        glm::vec2 mouseDelta = mousePos - windowCentre;
 
         static float forwardInput, upInput, rightInput, panInput, pitchInput;
         static float pan = glm::radians(90.f), pitch;
@@ -229,11 +241,8 @@ class Game : public mge::Engine {
         upInput = glm::mix(upInput, (float)(moveUp - moveDown), 5.f * deltaTime);
         rightInput = glm::mix(rightInput, (float)(moveRight - moveLeft), 5.f * deltaTime);
 
-        panInput = glm::mix(panInput, (float)(turnLeft - turnRight), 5.f * deltaTime);
-        pitchInput = glm::mix(pitchInput, (float)(turnUp - turnDown), 5.f * deltaTime);
-
-        pan += 2.f * deltaTime * panInput;
-        pitch += 2.f * deltaTime * pitchInput;
+        pan -= mouseDelta.x * MOUSE_SENSITIVITY;
+        pitch -= mouseDelta.y * MOUSE_SENSITIVITY;
 
         pitch = glm::clamp(pitch, -0.95f * glm::half_pi<float>(), 0.95f * glm::half_pi<float>());
 
