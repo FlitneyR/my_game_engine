@@ -106,7 +106,11 @@ class Game : public mge::Engine {
             m_modelSystem.addComponent(entity, modelName);
         }
 
-        m_lightMesh = std::make_unique<mge::Light::Mesh>(mge::makeFullScreenQuad(*this));
+        m_lightMesh = std::make_unique<mge::Light::Mesh>(mge::Mesh<mge::PointVertex>(*this, {
+            {{ -1.f, -1.f, 0.f }},
+            {{ -1.f,  3.f, 0.f }},
+            {{  3.f, -1.f, 0.f }},
+        }, { 0, 1, 2, }));
 
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
             loadShaderModule("build/fullscreenLight.vert.spv"),
@@ -135,7 +139,7 @@ class Game : public mge::Engine {
             m_lightSystem.addComponent(entity);
             auto ambientLight = m_lightSystem.getInstance(entity);
             ambientLight->m_type = ambientLight->e_ambient;
-            ambientLight->m_colour = glm::vec3 { 0.1f };
+            ambientLight->m_colour = glm::vec3 { 0.05f };
         }
 
         m_shadowMappedLightInstances.push_back(&m_shadowMappedLights[0]->getInstance(m_shadowMappedLights[0]->makeInstance()));
@@ -294,6 +298,10 @@ class Game : public mge::Engine {
         m_shadowMappedLightMaterial->bindPipeline(cmd);
         m_shadowMappedLightMaterial->bindUniform(cmd, *m_camera);
         for (auto& light : m_shadowMappedLights) light->drawInstances(cmd);
+    }
+
+    void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
+        
     }
 
     void end() override {

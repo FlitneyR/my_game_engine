@@ -6,7 +6,7 @@ CFLAGS = $(INCLUDES) -std=c++2a -g -O2 -c
 
 VULKAN_SDK_LIB_PATH = /Users/flitneyr/VulkanSDK/1.3.261.1/macOS/lib
 
-MAIN_DEPENDENCIES = build/engine.o build/objloader.o build/instance.o
+MAIN_DEPENDENCIES = build/engine.o build/objloader.o build/instance.o build/light.o
 
 COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/pbr.frag.spv \
@@ -26,7 +26,7 @@ main: bin/main shaders
 bin/main: build/main.o $(MAIN_DEPENDENCIES)
 	clang++ $(LFLAGS) -o $@ $^
 
-build/main.o: src/main.cpp src/demos/asteroids/game.cpp 
+build/main.o: src/main.cpp
 	clang++ $(CFLAGS) -o $@ $<
 
 build/%.o: src/%.cpp src/headers/%.hpp

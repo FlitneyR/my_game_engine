@@ -108,8 +108,8 @@ void main() {
     float NdotL = max(dot(normal, lightDirection), 0.0);
     vec3 illumination = (kD * ao * albedo / PI + specular) * radiance * NdotL;
 
-    vec3 colour = illumination / (illumination + 1.0);
-    // colour /= colour + 1.0;
+    vec3 colour = illumination;
+    colour /= colour + 1.0;
    
     f_emissive = vec4(colour, 1.0);
 }

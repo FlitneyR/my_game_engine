@@ -3,6 +3,7 @@
 
 #include <libraries.hpp>
 #include <engine.hpp>
+#include <vertex.hpp>
 
 #include <vector>
 
