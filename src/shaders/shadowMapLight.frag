@@ -60,7 +60,7 @@ void main() {
     vec4 worldPos = inverseView * inversePerspective * viewSpace;
     worldPos /= worldPos.w;
     
-    float shadow = pcfFilter(worldPos, 1, 5);
+    float shadow = pcfFilter(worldPos, 2, 5);
     if (shadow <= 0) return;
 
     vec4 camPos = inverseView * vec4(0, 0, 0, 1);

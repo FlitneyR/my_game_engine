@@ -174,14 +174,10 @@ class ShadowMappedLightMaterialInstance : public MaterialInstanceBase {
     vk::ImageView m_imageView;
     vk::DeviceMemory m_imageMemory;
 
-    vk::Buffer m_lightViewBuffer;
-    vk::DeviceMemory m_lightViewBufferMemory;
-
     vk::Sampler m_sampler;
 
     vk::DescriptorPool m_descriptorPool;
-    vk::DescriptorSet m_descriptorSet;
-
+    std::vector<vk::DescriptorSet> m_descriptorSets;
 
 public:
     mge::Camera m_shadowMapView;
@@ -217,7 +213,12 @@ public:
     }
 
     void bind(vk::CommandBuffer cmd, vk::PipelineLayout pipelineLayout) {
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 1, m_descriptorSet, nullptr);
+        cmd.bindDescriptorSets(
+            vk::PipelineBindPoint::eGraphics,
+            pipelineLayout, 1,
+            m_descriptorSets[r_engine->m_currentInFlightFrame],
+            nullptr
+        );
     }
 
     void cleanup() {
@@ -228,8 +229,8 @@ public:
         r_engine->m_device.destroyImageView(m_imageView);
         r_engine->m_device.destroySampler(m_sampler);
         r_engine->m_device.freeMemory(m_imageMemory);
-        r_engine->m_device.destroyBuffer(m_lightViewBuffer);
-        r_engine->m_device.freeMemory(m_lightViewBufferMemory);
+        // r_engine->m_device.destroyBuffer(m_lightViewBuffer);
+        // r_engine->m_device.freeMemory(m_lightViewBufferMemory);
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);
 
         if (s_descriptorSetLayout != VK_NULL_HANDLE) {
@@ -240,16 +241,11 @@ public:
 
     void updateViewBuffer(LightInstance& lightInstance) {
         lightInstance.updateShadowMapView(m_shadowMapView);
-
-        void* buffer = r_engine->m_device.mapMemory(m_lightViewBufferMemory, {}, sizeof(mge::CameraUniformData));
-
-        auto data = m_shadowMapView.getUniformData();
-        memcpy(buffer, &data, sizeof(data));
-
-        r_engine->m_device.unmapMemory(m_lightViewBufferMemory);
     }
 
-    void beginRenderPass(vk::CommandBuffer cmd) {
+    void beginShadowMapRenderPass(vk::CommandBuffer cmd, mge::LightInstance &lightInstance) {
+        updateViewBuffer(lightInstance);
+
         auto clearValue = vk::ClearValue {}
             .setDepthStencil({ 1.0f, 0 })
             ;
@@ -358,16 +354,16 @@ private:
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes {
             vk::DescriptorPoolSize {}
-                .setDescriptorCount(1)
+                .setDescriptorCount(r_engine->getMaxFramesInFlight())
                 .setType(vk::DescriptorType::eCombinedImageSampler)
                 ,
             vk::DescriptorPoolSize {}
-                .setDescriptorCount(1)
+                .setDescriptorCount(r_engine->getMaxFramesInFlight())
                 .setType(vk::DescriptorType::eUniformBuffer)
         };
 
         m_descriptorPool = r_engine->m_device.createDescriptorPool(vk::DescriptorPoolCreateInfo {}
-            .setMaxSets(1)
+            .setMaxSets(r_engine->getMaxFramesInFlight())
             .setPoolSizes(poolSizes)
             );
     }
@@ -384,56 +380,57 @@ private:
     }
 
     void setupLightViewBuffer() {
-        m_lightViewBuffer = r_engine->m_device.createBuffer(vk::BufferCreateInfo {}
-            .setQueueFamilyIndices(*r_engine->m_queueFamilies.graphicsFamily)
-            .setSharingMode(vk::SharingMode::eExclusive)
-            .setSize(sizeof(CameraUniformData))
-            .setUsage(vk::BufferUsageFlagBits::eUniformBuffer)
-            );
+        // m_lightViewBuffer = r_engine->m_device.createBuffer(vk::BufferCreateInfo {}
+        //     .setQueueFamilyIndices(*r_engine->m_queueFamilies.graphicsFamily)
+        //     .setSharingMode(vk::SharingMode::eExclusive)
+        //     .setSize(sizeof(CameraUniformData))
+        //     .setUsage(vk::BufferUsageFlagBits::eUniformBuffer)
+        //     );
         
-        auto memreqs = r_engine->m_device.getBufferMemoryRequirements(m_lightViewBuffer);
+        // auto memreqs = r_engine->m_device.getBufferMemoryRequirements(m_lightViewBuffer);
 
-        m_lightViewBufferMemory = r_engine->m_device.allocateMemory(vk::MemoryAllocateInfo {}
-            .setAllocationSize(memreqs.size)
-            .setMemoryTypeIndex(r_engine->findMemoryType(memreqs.memoryTypeBits,
-                vk::MemoryPropertyFlagBits::eDeviceLocal | vk::MemoryPropertyFlagBits::eHostCoherent)
-            ));
+        // m_lightViewBufferMemory = r_engine->m_device.allocateMemory(vk::MemoryAllocateInfo {}
+        //     .setAllocationSize(memreqs.size)
+        //     .setMemoryTypeIndex(r_engine->findMemoryType(memreqs.memoryTypeBits,
+        //         vk::MemoryPropertyFlagBits::eDeviceLocal | vk::MemoryPropertyFlagBits::eHostCoherent)
+        //     ));
         
-        r_engine->m_device.bindBufferMemory(m_lightViewBuffer, m_lightViewBufferMemory, {});
+        // r_engine->m_device.bindBufferMemory(m_lightViewBuffer, m_lightViewBufferMemory, {});
     }
 
     void setupDescriptorSet() {
-        m_descriptorSet = r_engine->m_device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {}
-            .setDescriptorPool(m_descriptorPool)
-            .setDescriptorSetCount(1)
-            .setSetLayouts(s_descriptorSetLayout)
-            )[0];
-        
-        r_engine->m_device.updateDescriptorSets(vk::WriteDescriptorSet {}
-            .setDstSet(m_descriptorSet)
-            .setDstBinding(0)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-            .setImageInfo(vk::DescriptorImageInfo {}
-                .setImageView(m_imageView)
-                .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-                .setSampler(m_sampler)
-                ),
-            {});
-        
-        auto range = r_engine->m_device.getBufferMemoryRequirements(m_lightViewBuffer);
+        std::vector<vk::DescriptorSetLayout> layouts(r_engine->getMaxFramesInFlight(), s_descriptorSetLayout);
 
-        auto bufferInfo = vk::DescriptorBufferInfo {}
-            .setBuffer(m_lightViewBuffer)
-            .setOffset({})
-            .setRange(range.size)
-            ;
+        m_descriptorSets = r_engine->m_device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {}
+            .setDescriptorPool(m_descriptorPool)
+            .setDescriptorSetCount(r_engine->getMaxFramesInFlight())
+            .setSetLayouts(layouts)
+            );
         
-        r_engine->m_device.updateDescriptorSets(vk::WriteDescriptorSet {}
-            .setDstSet(m_descriptorSet)
-            .setDstBinding(1)
-            .setDescriptorType(vk::DescriptorType::eUniformBuffer)
-            .setBufferInfo(bufferInfo),
-            {});
+        for (int i = 0; i < m_descriptorSets.size(); i++) {
+            r_engine->m_device.updateDescriptorSets(vk::WriteDescriptorSet {}
+                .setDstSet(m_descriptorSets[i])
+                .setDstBinding(0)
+                .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+                .setImageInfo(vk::DescriptorImageInfo {}
+                    .setImageView(m_imageView)
+                    .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+                    .setSampler(m_sampler)
+                    ),
+                {});
+            
+            auto memreqs = r_engine->m_device.getBufferMemoryRequirements(m_shadowMapView.m_buffers[i]);
+            
+            r_engine->m_device.updateDescriptorSets(vk::WriteDescriptorSet {}
+                .setDstSet(m_descriptorSets[i])
+                .setDstBinding(1)
+                .setDescriptorType(vk::DescriptorType::eUniformBuffer)
+                .setBufferInfo(vk::DescriptorBufferInfo {}
+                    .setBuffer(m_shadowMapView.m_buffers[i])
+                    .setOffset({})
+                    .setRange(memreqs.size)),
+                {});
+        }
     }
 };
 

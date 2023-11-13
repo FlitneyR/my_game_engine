@@ -32,7 +32,7 @@ void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    // glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
     m_window = glfwCreateWindow(initWidth, initHeight, getGameName().c_str(), nullptr, nullptr);
 
     createInstance();
@@ -881,7 +881,7 @@ void Engine::draw() {
     vk::CommandBufferBeginInfo beginInfo;
     cmd.begin(beginInfo);
 
-    renderShadowMaps(cmd);
+    recordShadowMapDrawCommands(cmd);
 
     auto viewport = vk::Viewport {}
         .setX(0.f)
@@ -902,24 +902,12 @@ void Engine::draw() {
     cmd.setScissor(0, scissor);
 
     std::vector<vk::ClearValue> clearValues {
-        vk::ClearValue {} // final colour
-            .setColor({ 0.f, 0.f, 0.f, 1.f })
-            ,
-        vk::ClearValue {} // depth
-            .setDepthStencil({ 1.0f, 0 })
-            ,
-        vk::ClearValue {} // albedo
-            .setColor({ 0.f, 0.f, 0.f, 1.f })
-            ,
-        vk::ClearValue {} // normal
-            .setColor({ 0.f, 0.f, 1.f, 1.f })
-            ,
-        vk::ClearValue {} // arm 
-            .setColor({ 0.f, 0.f, 0.f, 1.f })
-            ,
-        vk::ClearValue {} // emissive
-            .setColor({ 0.f, 0.f, 0.f, 1.f })
-            ,
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // final colour
+        vk::ClearValue {}.setDepthStencil({ 1.0f, 0 }),        // depth
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // albedo
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 1.f, 1.f }),    // normal
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // arm 
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // emissive
     };
 
     auto renderPassBeginInfo = vk::RenderPassBeginInfo {}
@@ -1025,7 +1013,7 @@ void Engine::draw() {
         rebuildSwapchain();
     } else vk::resultCheck(presentResult, "Failed to present render result");
 
-    m_currentInFlightFrame = ++m_currentInFlightFrame % getMaxFramesInFlight();
+    m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
 }
 
 void Engine::cleanup() {

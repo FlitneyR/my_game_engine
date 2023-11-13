@@ -140,12 +140,12 @@ class Game : public mge::Engine {
 
         m_shadowMappedLightInstances.push_back(&m_shadowMappedLights[0]->getInstance(m_shadowMappedLights[0]->makeInstance()));
         m_shadowMappedLightInstances.back()->m_type = mge::LightInstance::e_spot;
-        m_shadowMappedLightInstances.back()->m_position = glm::vec3 { 8.f, 5.f, 2.f };
+        m_shadowMappedLightInstances.back()->m_position = glm::vec3 { -10.f, -4.f, 2.f };
         m_shadowMappedLightInstances.back()->m_angle = glm::radians(60.f);
         m_shadowMappedLightInstances.back()->m_near = 0.01f;
         m_shadowMappedLightInstances.back()->m_far = 500.f;
         m_shadowMappedLightInstances.back()->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
-        m_shadowMappedLightInstances.back()->m_direction = glm::vec3 { 0.f, -1.f, -1.f };
+        m_shadowMappedLightInstances.back()->m_direction = glm::vec3 { 1.f, 2.f, -1.f };
 
         m_shadowMappedLightInstances.push_back(&m_shadowMappedLights[1]->getInstance(m_shadowMappedLights[1]->makeInstance()));
         m_shadowMappedLightInstances.back()->m_type = mge::LightInstance::e_directional;
@@ -167,7 +167,7 @@ class Game : public mge::Engine {
             pointLight->m_colour = colours[index++] * 10.f;
 
             m_transformSystem.getComponent(entity)
-                ->setPosition(glm::vec3 { 5.f * i, 0.f, 2.f });
+                ->setPosition(glm::vec3 { 5.f * i, 0.5f, 0.1f });
         }
 
         m_cameraEntity = m_ecsManager.makeEntity();
@@ -246,33 +246,27 @@ class Game : public mge::Engine {
             glm::angleAxis(pitch, glm::vec3 { 1.f, 0.f, 0.f })
         );
 
+        // static float time = 0.f;
+        // time += deltaTime;
+
+        // cameraTransform->setRotation(
+        //     glm::angleAxis(glm::radians(90.f) + glm::sin(time), glm::vec3 { 0.f, 0.f, 1.f })
+        // );
+
         m_camera->m_position = cameraTransform->getPosition();
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
-
-        for (int i = 0; i < m_shadowMappedLights.size(); i++)
-            m_shadowMappedLightMaterialInstances[i]->updateViewBuffer(*m_shadowMappedLightInstances[i]);
-        // static float time = 0.0;
-        // time += deltaTime;
-        // m_shadowMappedLightInstances[1]->m_direction.x = glm::cos(time);
-        // m_shadowMappedLightInstances[1]->m_direction.y = glm::sin(time);
     }
 
-    void renderShadowMaps(vk::CommandBuffer cmd) override {
-        static bool hasRendered = false;
-
-        if (!hasRendered) {
-            for (int i = 0; i < m_shadowMappedLights.size(); i++) {
-                m_shadowMappedLightMaterialInstances[i]->beginRenderPass(cmd);
-                recordShadowMapDrawCommands(cmd, m_shadowMappedLightMaterialInstances[i]->m_shadowMapView);
-                cmd.endRenderPass();
-            }
-
-            // hasRendered = true;
+    void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
+        for (int i = 0; i < m_shadowMappedLights.size(); i++) {
+            m_shadowMappedLightMaterialInstances[i]->beginShadowMapRenderPass(cmd, *m_shadowMappedLightInstances[i]);
+            recordShadowMapGeometryDrawCommands(cmd, m_shadowMappedLightMaterialInstances[i]->m_shadowMapView);
+            cmd.endRenderPass();
         }
     }
 
-    void recordShadowMapDrawCommands(vk::CommandBuffer cmd, mge::Camera& shadowMapView) override {
+    void recordShadowMapGeometryDrawCommands(vk::CommandBuffer cmd, mge::Camera& shadowMapView) override {
         m_modelMaterial->bindShadowMapPipeline(cmd);
         m_modelMaterial->bindUniform(cmd, shadowMapView);
 
@@ -294,10 +288,11 @@ class Game : public mge::Engine {
 
     void recordLightingDrawCommands(vk::CommandBuffer cmd) override {
         m_lightMaterial->bindPipeline(cmd);
+        m_lightMaterial->bindUniform(cmd, *m_camera);
         m_light->drawInstances(cmd);
-        
-        m_shadowMappedLightMaterial->bindPipeline(cmd);
 
+        m_shadowMappedLightMaterial->bindPipeline(cmd);
+        m_shadowMappedLightMaterial->bindUniform(cmd, *m_camera);
         for (auto& light : m_shadowMappedLights) light->drawInstances(cmd);
     }
 

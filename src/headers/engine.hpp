@@ -139,8 +139,8 @@ public:
     vk::ShaderModule compileShaderModule(std::vector<uint32_t>& code);
 
     virtual void start() {}
-    virtual void renderShadowMaps(vk::CommandBuffer cmd) {}
-    virtual void recordShadowMapDrawCommands(vk::CommandBuffer cmd, Camera& shadowMapView) {}
+    virtual void recordShadowMapDrawCommands(vk::CommandBuffer cmd) {}
+    virtual void recordShadowMapGeometryDrawCommands(vk::CommandBuffer cmd, Camera& shadowMapView) {}
     virtual void recordGBufferDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}

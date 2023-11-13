@@ -261,8 +261,8 @@ void MATERIAL::createPipeline() {
             .setDepthBiasSlopeFactor(2.f)
             ;
         
-        stages.erase(++stages.begin());
-        createInfo.setStages(stages);
+        // stages.erase(++stages.begin());
+        // createInfo.setStages(stages);
 
         pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
         vk::resultCheck(pipelineResultValue.result, "Failed to create shadow mapping pipeline");

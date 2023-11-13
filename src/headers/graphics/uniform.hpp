@@ -99,7 +99,8 @@ void Uniform<UniformData>::allocateBuffers() {
 
 template<typename UniformData>
 void Uniform<UniformData>::updateBuffer() {
-    updateBuffer(r_engine->m_currentInFlightFrame);
+    // I don't know why, but without this one frame offset, lights are rendered as if they move one frame faster than the camera does
+    updateBuffer((r_engine->m_currentInFlightFrame + 1) % r_engine->getMaxFramesInFlight());
 }
 
 template<typename UniformData>
