@@ -11,12 +11,12 @@ void LightInstance::updateShadowMapView(Camera& shadowMapView) {
     switch (m_type) {
     case e_directional:
         shadowMapView.m_projectionType = shadowMapView.e_orthographic;
-        shadowMapView.m_viewport = glm::vec2 { m_angle, m_angle };
+        shadowMapView.m_shadowMapRange = glm::vec2 { m_shadowRange, m_shadowRange };
         break;
     case e_spot:
         shadowMapView.m_projectionType = shadowMapView.e_perspective;
         shadowMapView.m_fov = m_angle * 2.f;
-        shadowMapView.m_viewport = std::nullopt;
+        shadowMapView.m_shadowMapRange = std::nullopt;
         break;
     default: throw std::runtime_error("Cannot get shadow map view for this type of light");
     }

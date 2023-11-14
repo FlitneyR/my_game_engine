@@ -15,7 +15,7 @@ public:
     glm::vec3 m_colour;
     glm::vec3 m_position;
     glm::vec3 m_direction;
-    float m_angle, m_near, m_far;
+    float m_angle, m_shadowRange, m_near, m_far;
     uint8_t m_type;
 
     enum Type {

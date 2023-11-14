@@ -66,7 +66,7 @@ class Game : public mge::Engine {
     };
 
     std::unique_ptr<mge::Camera> m_camera;
-    mge::ecs::Entity m_cameraEntity;
+    mge::ecs::Entity m_cameraEntity, m_spotLightEntity;
     
     void start() override {
         glm::vec<2, int> windowSize;
@@ -158,7 +158,7 @@ class Game : public mge::Engine {
 
             sunLight->m_type = sunLight->e_directional;
             sunLight->m_colour = glm::vec3 { 2.f, 1.5f, 1.f } * 15.f;
-            sunLight->m_angle = 30.f;
+            sunLight->m_shadowRange = 30.f;
             sunLight->m_near = -1000.f;
             sunLight->m_far = 500.f;
         }
@@ -175,9 +175,11 @@ class Game : public mge::Engine {
 
             spotLight->m_type = mge::LightInstance::e_spot;
             spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
-            spotLight->m_angle = glm::radians(60.f);
+            spotLight->m_angle = glm::radians(45.f);
             spotLight->m_near = 0.01f;
             spotLight->m_far = 500.f;
+
+            m_spotLightEntity = entity;
         }
 
         std::vector<glm::vec3> colours { { 1.f, 0.1f, 0.1f }, { 0.1f, 1.f, 0.1f }, { 0.1f, 0.1f, 1.f } };
@@ -274,6 +276,14 @@ class Game : public mge::Engine {
         m_camera->m_position = cameraTransform->getPosition();
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
+
+        auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
+        
+        spotLightTransform->setPosition(
+            cameraTransform->getMat4() * glm::vec4 { 0.25f, 0.f, -0.25f, 1.f }
+        );
+
+        spotLightTransform->setRotation(cameraTransform->getRotation());
     }
 
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {

@@ -31,7 +31,7 @@ struct Camera : public Uniform<CameraUniformData> {
     float m_near;
     float m_far;
 
-    std::optional<glm::vec2> m_viewport;
+    std::optional<glm::vec2> m_shadowMapRange;
 
     enum ProjectionType {
         e_perspective, e_orthographic
@@ -53,8 +53,8 @@ struct Camera : public Uniform<CameraUniformData> {
 
         glm::vec2 viewport;
 
-        if (m_viewport) {
-            viewport = *m_viewport;
+        if (m_shadowMapRange) {
+            viewport = *m_shadowMapRange;
         } else {
             viewport.x = r_engine->m_swapchainExtent.width;
             viewport.y = r_engine->m_swapchainExtent.height;

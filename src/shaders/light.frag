@@ -100,7 +100,7 @@ void main() {
 
     vec3 colour = illumination;
 
-    colour = colour / (colour + vec3(1.0));
+    colour = colour / (colour + 1.0);
    
     f_emissive = vec4(colour, 1.0);
 }
