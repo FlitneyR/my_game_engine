@@ -10,12 +10,16 @@
 #include <vector>
 #include <any>
 
+namespace mge { class Engine; }
+
 namespace mge::ecs {
 
 class ECSManager {
     Entity nextEntityID = 0;
 
 public:
+    mge::Engine* r_engine;
+
     std::unordered_set<Entity> m_entities;
     std::unordered_map<std::string, SystemBase*> m_systems;
 

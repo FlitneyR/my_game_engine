@@ -97,8 +97,6 @@ protected:
 class ShadowMappedLightMaterialInstance : public MaterialInstanceBase {
     Engine* r_engine;
 
-    Texture m_texture;
-
     vk::Framebuffer m_framebuffer;
     
     vk::Image m_image;
@@ -111,6 +109,7 @@ class ShadowMappedLightMaterialInstance : public MaterialInstanceBase {
     std::vector<vk::DescriptorSet> m_descriptorSets;
 
 public:
+    Texture m_shadowMapTexture;
     Camera m_shadowMapView;
 
     ShadowMappedLightMaterialInstance(Engine& engine) :

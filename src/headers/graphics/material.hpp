@@ -256,13 +256,10 @@ void MATERIAL::createPipeline() {
         
         rasterizationState
             .setDepthBiasEnable(true)
-            .setDepthBiasConstantFactor(2.f)
+            .setDepthBiasConstantFactor(5.f)
             .setCullMode(vk::CullModeFlagBits::eNone)
-            .setDepthBiasSlopeFactor(2.f)
+            .setDepthBiasSlopeFactor(5.f)
             ;
-        
-        // stages.erase(++stages.begin());
-        // createInfo.setStages(stages);
 
         pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
         vk::resultCheck(pipelineResultValue.result, "Failed to create shadow mapping pipeline");

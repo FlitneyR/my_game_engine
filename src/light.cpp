@@ -74,7 +74,7 @@ void LightMaterial::modifyPipelineCreateInfo(vk::GraphicsPipelineCreateInfo& cre
 void ShadowMappedLightMaterialInstance::setup(uint32_t width, uint32_t height) {
     m_shadowMapView.setup();
 
-    m_texture = Texture(width, height,
+    m_shadowMapTexture = Texture(width, height,
         r_engine->m_depthImageFormat,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,
         Texture::e_depth
@@ -135,15 +135,15 @@ void ShadowMappedLightMaterialInstance::beginShadowMapRenderPass(vk::CommandBuff
     auto viewport = vk::Viewport {}
         .setX(0.f)
         .setY(0.f)
-        .setWidth(m_texture.m_width)
-        .setHeight(m_texture.m_height)
+        .setWidth(m_shadowMapTexture.m_width)
+        .setHeight(m_shadowMapTexture.m_height)
         .setMinDepth(0.f)
         .setMaxDepth(1.f)
         ;
 
     auto scissor = vk::Rect2D {}
         .setOffset({ 0, 0 })
-        .setExtent({ m_texture.m_width, m_texture.m_height })
+        .setExtent({ m_shadowMapTexture.m_width, m_shadowMapTexture.m_height })
         ;
 
     cmd.beginRenderPass(vk::RenderPassBeginInfo {}
@@ -161,8 +161,8 @@ void ShadowMappedLightMaterialInstance::beginShadowMapRenderPass(vk::CommandBuff
 void ShadowMappedLightMaterialInstance::setupImage() {
     m_image = r_engine->m_device.createImage(vk::ImageCreateInfo {}
         .setArrayLayers(1)
-        .setExtent({ m_texture.m_width, m_texture.m_height, 1 })
-        .setFormat(m_texture.m_format)
+        .setExtent({ m_shadowMapTexture.m_width, m_shadowMapTexture.m_height, 1 })
+        .setFormat(m_shadowMapTexture.m_format)
         .setImageType(vk::ImageType::e2D)
         .setInitialLayout(vk::ImageLayout::eUndefined)
         .setMipLevels(1)
@@ -188,7 +188,7 @@ void ShadowMappedLightMaterialInstance::allocateImageMemory() {
 
 void ShadowMappedLightMaterialInstance::setupImageView() {
     m_imageView = r_engine->m_device.createImageView(vk::ImageViewCreateInfo {}
-        .setFormat(m_texture.m_format)
+        .setFormat(m_shadowMapTexture.m_format)
         .setImage(m_image)
         .setSubresourceRange(vk::ImageSubresourceRange {}
             .setAspectMask(vk::ImageAspectFlagBits::eDepth)
@@ -205,8 +205,8 @@ void ShadowMappedLightMaterialInstance::setupFramebuffer() {
     m_framebuffer = r_engine->m_device.createFramebuffer(vk::FramebufferCreateInfo {}
         .setRenderPass(r_engine->m_shadowMappingRenderPass)
         .setAttachments(m_imageView)
-        .setWidth(m_texture.m_width)
-        .setHeight(m_texture.m_height)
+        .setWidth(m_shadowMapTexture.m_width)
+        .setHeight(m_shadowMapTexture.m_height)
         .setLayers(1)
         );
 }
