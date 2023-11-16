@@ -260,6 +260,8 @@ void MATERIAL::createPipeline() {
             .setCullMode(vk::CullModeFlagBits::eNone)
             .setDepthBiasSlopeFactor(5.f)
             ;
+        
+        createInfo.setStages(stages[0]);
 
         pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
         vk::resultCheck(pipelineResultValue.result, "Failed to create shadow mapping pipeline");

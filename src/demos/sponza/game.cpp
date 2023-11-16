@@ -4,6 +4,7 @@
 #include <lightInstance.hpp>
 #include <camera.hpp>
 #include <objloader.hpp>
+#include <postProcessing.hpp>
 
 #include <vector>
 #include <string>
@@ -67,6 +68,8 @@ class Game : public mge::Engine {
 
     std::unique_ptr<mge::Camera> m_camera;
     mge::ecs::Entity m_cameraEntity, m_spotLightEntity;
+
+    mge::HDRColourCorrection m_hdrColourCorrection;
     
     void start() override {
         glm::vec<2, int> windowSize;
@@ -78,6 +81,8 @@ class Game : public mge::Engine {
         m_ecsManager.addSystem("Model", &m_modelSystem);
         m_ecsManager.addSystem("Transform", &m_transformSystem);
         m_ecsManager.addSystem("Light", &m_lightSystem);
+
+        m_hdrColourCorrection = mge::HDRColourCorrection(*this);
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"),
@@ -214,9 +219,17 @@ class Game : public mge::Engine {
         m_light->setup();
 
         m_modelMaterial->setup();
+
+        m_hdrColourCorrection.setup();
     }
 
     void update(double deltaTime) override {
+        if (glfwGetKey(m_window, GLFW_KEY_ESCAPE))
+            glfwSetInputMode(m_window, GLFW_CURSOR,
+                glfwGetInputMode(m_window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN
+                    ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
+
+        
         updateCameraPosition(deltaTime);
 
         m_camera->updateBuffer();
@@ -229,24 +242,36 @@ class Game : public mge::Engine {
     }
 
     void updateCameraPosition(float deltaTime) {
-        bool moveUp = glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS;
-        bool moveDown = glfwGetKey(m_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
-        bool moveLeft = glfwGetKey(m_window, GLFW_KEY_A) == GLFW_PRESS;
-        bool moveRight = glfwGetKey(m_window, GLFW_KEY_D) == GLFW_PRESS;
-        bool moveForward = glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS;
-        bool moveBackward = glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS;
+        bool moveUp = false;
+        bool moveDown = false;
+        bool moveLeft = false;
+        bool moveRight = false;
+        bool moveForward = false;
+        bool moveBackward = false;
+
+        if (glfwGetInputMode(m_window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN) {
+            moveUp = glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS;
+            moveDown = glfwGetKey(m_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+            moveLeft = glfwGetKey(m_window, GLFW_KEY_A) == GLFW_PRESS;
+            moveRight = glfwGetKey(m_window, GLFW_KEY_D) == GLFW_PRESS;
+            moveForward = glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS;
+            moveBackward = glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS;
+        }
 
         static constexpr float MOUSE_SENSITIVITY = 0.005f;
+        glm::vec2 mouseDelta { 0.f, 0.f };
 
-        glm::vec<2, double> mousePos;
-        glfwGetCursorPos(m_window, &mousePos.x, &mousePos.y);
+        if (glfwGetInputMode(m_window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN) {
+            glm::vec<2, double> mousePos;
+            glfwGetCursorPos(m_window, &mousePos.x, &mousePos.y);
 
-        glm::vec<2, int> windowSize;
-        glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
-        glm::vec<2, double> windowCentre = windowSize; windowCentre /= 2.0;
-        glfwSetCursorPos(m_window, windowCentre.x, windowCentre.y);
+            glm::vec<2, int> windowSize;
+            glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
+            glm::vec<2, double> windowCentre = windowSize; windowCentre /= 2.0;
+            glfwSetCursorPos(m_window, windowCentre.x, windowCentre.y);
 
-        glm::vec2 mouseDelta = mousePos - windowCentre;
+            mouseDelta = mousePos - windowCentre;
+        }
 
         static float forwardInput, upInput, rightInput, panInput, pitchInput;
         static float pan = glm::radians(90.f), pitch;
@@ -254,7 +279,7 @@ class Game : public mge::Engine {
         forwardInput = glm::mix(forwardInput, (float)(moveForward - moveBackward), 5.f * deltaTime);
         upInput = glm::mix(upInput, (float)(moveUp - moveDown), 5.f * deltaTime);
         rightInput = glm::mix(rightInput, (float)(moveRight - moveLeft), 5.f * deltaTime);
-
+        
         pan -= mouseDelta.x * MOUSE_SENSITIVITY;
         pitch -= mouseDelta.y * MOUSE_SENSITIVITY;
 
@@ -325,7 +350,7 @@ class Game : public mge::Engine {
     }
 
     void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
-        
+        m_hdrColourCorrection.draw(cmd);
     }
 
     void end() override {
@@ -351,5 +376,7 @@ class Game : public mge::Engine {
 
         m_lightMaterial->cleanup();
         m_shadowMappedLightMaterial->cleanup();
+
+        m_hdrColourCorrection.cleanup();
     }
 };

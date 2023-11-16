@@ -472,8 +472,9 @@ void Engine::createRenderPass() {
         ;
 
     auto emissiveTarget = vk::AttachmentDescription { templateAttachment }
-        .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_emissiveFormat)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
         ;
     
     std::vector<vk::AttachmentDescription> attachments {
@@ -544,11 +545,11 @@ void Engine::createRenderPass() {
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setInputAttachments(lightingAttachments)
             ,
-        vk::SubpassDescription {}
-            .setColorAttachments(emissiveAttachment)
-            .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
-            .setInputAttachments(emissiveAttachment)
-            ,
+        // vk::SubpassDescription {}
+        //     .setColorAttachments(emissiveAttachment)
+        //     .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
+        //     .setInputAttachments(emissiveAttachment)
+        //     ,
         };
     
     std::vector<vk::SubpassDependency> dependencies {
@@ -569,6 +570,15 @@ void Engine::createRenderPass() {
             .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             ,
+        vk::SubpassDependency {} // shadow map dependency
+            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+            .setDstSubpass(1)
+            .setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests
+                           | vk::PipelineStageFlagBits::eLateFragmentTests)
+            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            ,
         vk::SubpassDependency {} // prepare gbuffer for reading
             .setSrcSubpass(0)
             .setDstSubpass(1)
@@ -580,23 +590,15 @@ void Engine::createRenderPass() {
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             ,
-        vk::SubpassDependency {} // shadow map dependency
-            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
-            .setDstSubpass(1)
-            .setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests
-                           | vk::PipelineStageFlagBits::eLateFragmentTests)
-            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-            .setSrcAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite)
-            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-            ,
-        vk::SubpassDependency {} // post processing pass
+        vk::SubpassDependency {} // prepare emissive for display
             .setSrcSubpass(1)
-            .setDstSubpass(2)
+            .setDstSubpass(1)
             .setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader)
             .setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
             .setSrcAccessMask(vk::AccessFlagBits::eInputAttachmentRead)
             .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
             .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
+            ,
     };
 
     auto createInfo = vk::RenderPassCreateInfo {}
@@ -892,14 +894,10 @@ void Engine::draw() {
         .setMaxDepth(1.f)
         ;
 
-    cmd.setViewport(0, viewport);
-
     auto scissor = vk::Rect2D {}
         .setOffset({ 0, 0 })
         .setExtent(m_swapchainExtent)
         ;
-    
-    cmd.setScissor(0, scissor);
 
     std::vector<vk::ClearValue> clearValues {
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // final colour
@@ -913,19 +911,21 @@ void Engine::draw() {
     auto renderPassBeginInfo = vk::RenderPassBeginInfo {}
         .setClearValues(clearValues)
         .setFramebuffer(m_framebuffers[imageIndex])
-        .setRenderArea({{ 0, 0 }, { m_swapchainExtent.width, m_swapchainExtent.height }})
+        .setRenderArea({ {}, m_swapchainExtent })
         .setRenderPass(m_renderPass)
         ;
 
+    cmd.setViewport(0, viewport);
+    cmd.setScissor(0, scissor);
     cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
     recordGBufferDrawCommands(cmd);
     cmd.nextSubpass(vk::SubpassContents::eInline);
     recordLightingDrawCommands(cmd);
-    cmd.nextSubpass(vk::SubpassContents::eInline);
-    recordPostProcessingDrawCommands(cmd);
 
     cmd.endRenderPass();
+
+    recordPostProcessingDrawCommands(cmd);
 
     auto region = vk::ImageBlit {}
         .setSrcSubresource(vk::ImageSubresourceLayers {
