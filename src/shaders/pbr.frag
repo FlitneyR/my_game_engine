@@ -5,11 +5,14 @@ layout(location = 1) in vec3 v_normal;
 layout(location = 2) in vec3 v_tangent;
 layout(location = 3) in vec3 v_bitangent;
 layout(location = 4) in vec2 v_texcoord;
+layout(location = 5) in vec4 v_currentScreenPos;
+layout(location = 6) in vec4 v_previousScreenPos;
 
 layout(location = 0) out vec4 f_albedo;
 layout(location = 1) out vec4 f_normal;
 layout(location = 2) out vec4 f_arm;
 layout(location = 3) out vec4 f_emissive;
+layout(location = 4) out vec4 f_velocity;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoTex;
 layout(set = 1, binding = 1) uniform sampler2D armTex;
@@ -27,4 +30,5 @@ void main() {
     f_arm = vec4(1.0, arm.gb, 1.0);
     f_normal = vec4(normalize(v_tangent * normal.x + v_bitangent * normal.y + v_normal * normal.z), 1.0);
     f_emissive = vec4(0.0, 0.0, 0.0, 1.0);
+    f_velocity = vec4((v_currentScreenPos.xyz / v_currentScreenPos.w) - (v_previousScreenPos.xyz / v_previousScreenPos.w), 1.0);
 }

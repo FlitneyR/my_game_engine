@@ -1,16 +1,28 @@
 #version 450
 
-layout(location = 0) out vec4 f_emissive;
+layout(location = 0) out vec4 f_colour;
 
-layout(set = 0, binding = 0) uniform sampler2D previousFrame;
-layout(set = 0, binding = 1) uniform sampler2D currentFrame;
+layout(set = 0, binding = 0) uniform sampler2D t_previousFrame;
+layout(set = 0, binding = 1) uniform sampler2D t_currentFrame;
+layout(set = 0, binding = 2) uniform sampler2D t_velocity;
 
 void main() {
-    vec2 texel = 1.0 / textureSize(previousFrame, 0);
+    vec2 texel = 1.0 / textureSize(t_previousFrame, 0);
     vec2 uv = gl_FragCoord.xy * texel;
 
-    vec3 previousFrameColour = clamp(texture(previousFrame, uv).rgb, 0, 1);
-    vec3 currentFrameColour = clamp(texture(currentFrame, uv).rgb, 0, 1);
+    vec3 currentFrameColour = texture(t_currentFrame, uv).rgb;
+
+    vec3 velocity = texture(t_velocity, uv).rgb;
+
+    vec2 previousUV = uv - velocity.xy * 0.5;
+
+    // if the previous screen position was off screen
+    if (clamp(previousUV, 0, 1) != previousUV) {
+        f_colour = vec4(currentFrameColour, 1.0);
+        return;
+    }
+
+    vec3 previousFrameColour = clamp(texture(t_previousFrame, previousUV).rgb, 0, 1);
 
     // compute aabb
     vec3[2] aabb = vec3[2](currentFrameColour, currentFrameColour);
@@ -18,7 +30,7 @@ void main() {
     for (int i = -1; i <= 1; i++)
     for (int j = -1; j <= 1; j++) {
         vec2 deltaUV = vec2(i, j) * texel;
-        vec3 p = clamp(texture(currentFrame, uv + deltaUV).rgb, 0, 1);
+        vec3 p = clamp(texture(t_currentFrame, uv + deltaUV).rgb, 0, 1);
         aabb[0] = min(aabb[0], p);
         aabb[1] = max(aabb[1], p);
     }
@@ -26,5 +38,5 @@ void main() {
     // clamp previous frame colour within aabb
     previousFrameColour = clamp(previousFrameColour, aabb[0], aabb[1]);
 
-    f_emissive = vec4(mix(previousFrameColour, currentFrameColour, 0.1), 1.0);
+    f_colour = vec4(mix(previousFrameColour, currentFrameColour, 0.1), 1.0);
 }

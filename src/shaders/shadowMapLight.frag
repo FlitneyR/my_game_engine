@@ -13,12 +13,21 @@ layout(set = 0, binding = 0) uniform Camera {
     mat4 view;
     mat4 perspective;
     vec2 jitter;
+    
+    mat4 previousView;
+    mat4 previousPerspective;
+    vec2 previousJitter;
 } camera;
 
 layout(set = 1, binding = 0) uniform sampler2D depthTex;
 layout(set = 1, binding = 1) uniform LightView {
     mat4 view;
     mat4 perspective;
+    vec2 jitter;
+    
+    mat4 previousView;
+    mat4 previousPerspective;
+    vec2 previousJitter;
 } lightView;
 
 layout(set = 2, binding = 0, input_attachment_index = 0) uniform subpassInput i_depth;

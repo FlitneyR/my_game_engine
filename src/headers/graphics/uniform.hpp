@@ -20,7 +20,9 @@ public:
     std::vector<vk::DescriptorSet> m_descriptorSets;
     static vk::DescriptorSetLayout s_descriptorSetLayout;
 
-    virtual UniformData getUniformData() = 0;
+    UniformData m_uniformData;
+
+    virtual void updateUniformData(UniformData& uniform) = 0;
 
     virtual void setup() {
         createBuffers();
@@ -105,8 +107,8 @@ void Uniform<UniformData>::updateBuffer() {
 template<typename UniformData>
 void Uniform<UniformData>::updateBuffer(int index) {
     void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[index], 0, sizeof(UniformData));
-    UniformData uniformData = getUniformData();
-    memcpy(mappedMemory, &uniformData, sizeof(UniformData));
+    updateUniformData(m_uniformData);
+    memcpy(mappedMemory, &m_uniformData, sizeof(UniformData));
     r_engine->m_device.unmapMemory(m_bufferMemories[index]);
 }
 

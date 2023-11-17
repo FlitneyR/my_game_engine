@@ -59,8 +59,7 @@ void TAA::transitionImageLayouts() {
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe,
         vk::PipelineStageFlagBits::eBottomOfPipe,
-        vk::DependencyFlagBits::eByRegion,
-        {}, {},
+        {}, {}, {},
         {
             barrier.setImage(m_previousFrame),
             barrier.setImage(m_currentFrame)
@@ -106,6 +105,12 @@ void TAA::setupDescriptorSetLayout() {
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
             .setStageFlags(vk::ShaderStageFlagBits::eFragment)
             ,
+        vk::DescriptorSetLayoutBinding {}
+            .setBinding(2)
+            .setDescriptorCount(1)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+            .setStageFlags(vk::ShaderStageFlagBits::eFragment)
+            ,
     };
 
     m_descriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo {}
@@ -123,6 +128,10 @@ void TAA::setupDescriptorPool() {
             .setDescriptorCount(1)
             .setType(vk::DescriptorType::eCombinedImageSampler)
             ,
+        vk::DescriptorPoolSize {}
+            .setDescriptorCount(1)
+            .setType(vk::DescriptorType::eCombinedImageSampler)
+            ,
     };
 
     m_descriptorPool = r_engine->m_device.createDescriptorPool(vk::DescriptorPoolCreateInfo {}
@@ -132,10 +141,16 @@ void TAA::setupDescriptorPool() {
 }
 
 void TAA::setupSamplers() {
-    auto createInfo = vk::SamplerCreateInfo {};
+    auto createInfo = vk::SamplerCreateInfo {}
+        .setAddressModeU(vk::SamplerAddressMode::eClampToEdge)
+        .setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
+        .setMinFilter(vk::Filter::eLinear)
+        .setMagFilter(vk::Filter::eLinear)
+        ;
 
     m_previousFrameSampler = r_engine->m_device.createSampler(createInfo);
-    m_thisFrameSampler = r_engine->m_device.createSampler(createInfo);
+    m_currentFrameSampler = r_engine->m_device.createSampler(createInfo);
+    m_velocitySampler = r_engine->m_device.createSampler(createInfo);
 }
 
 void TAA::setupDescriptorSet() {
@@ -164,7 +179,17 @@ void TAA::setupDescriptorSet() {
             .setImageInfo(vk::DescriptorImageInfo {}
                 .setImageView(m_currentFrameView)
                 .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-                .setSampler(m_thisFrameSampler))
+                .setSampler(m_currentFrameSampler))
+            ,
+        vk::WriteDescriptorSet {}
+            .setDstBinding(2)
+            .setDescriptorCount(1)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+            .setDstSet(m_descriptorSet)
+            .setImageInfo(vk::DescriptorImageInfo {}
+                .setImageView(r_engine->m_velocityImageView)
+                .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+                .setSampler(m_velocitySampler))
             ,
         }, {});
 }
@@ -196,7 +221,6 @@ void TAA::setupRenderPass() {
             .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
             .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             ,
         vk::SubpassDependency {}
             .setSrcSubpass(VK_SUBPASS_EXTERNAL)
@@ -205,7 +229,6 @@ void TAA::setupRenderPass() {
             .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
             .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
             .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-            .setDependencyFlags(vk::DependencyFlagBits::eByRegion)
             ,
     };
 
@@ -356,8 +379,7 @@ void TAA::draw(vk::CommandBuffer cmd) {
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer,
         vk::PipelineStageFlagBits::eFragmentShader,
-        vk::DependencyFlagBits::eByRegion,
-        {}, {}, {
+        {}, {}, {}, {
             barrier.setImage(m_currentFrame),
             barrier.setImage(m_previousFrame),
         }
@@ -378,8 +400,7 @@ void TAA::draw(vk::CommandBuffer cmd) {
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eFragmentShader,
         vk::PipelineStageFlagBits::eTransfer,
-        vk::DependencyFlagBits::eByRegion,
-        {}, {}, {
+        {}, {}, {}, {
             barrier.setImage(m_previousFrame)
                 .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
                 .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)

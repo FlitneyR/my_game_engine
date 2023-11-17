@@ -360,6 +360,10 @@ void Engine::rebuildSwapchain() {
     m_device.destroyImageView(m_emissiveImageView);
     m_device.freeMemory(m_emissiveImageMemory);
 
+    m_device.destroyImage(m_velocityImage);
+    m_device.destroyImageView(m_velocityImageView);
+    m_device.freeMemory(m_velocityImageMemory);
+
     m_device.destroyDescriptorPool(m_gbufferDescriptorPool);
 
     m_device.destroySwapchainKHR(m_swapchain);
@@ -469,28 +473,34 @@ void Engine::createRenderPass() {
         ;
 
     auto depthTarget = vk::AttachmentDescription { templateAttachment }
-        .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_depthImageFormat)
         ;
 
     auto albedoTarget = vk::AttachmentDescription { templateAttachment }
-        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_albedoFormat)
         ;
 
     auto normalTarget = vk::AttachmentDescription { templateAttachment }
-        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_normalFormat)
         ;
 
     auto armTarget = vk::AttachmentDescription { templateAttachment }
-        .setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_armFormat)
         ;
 
     auto emissiveTarget = vk::AttachmentDescription { templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_emissiveFormat)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        ;
+
+    auto velocityTarget = vk::AttachmentDescription { templateAttachment }
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setFormat(m_velocityFormat)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         ;
     
@@ -500,7 +510,8 @@ void Engine::createRenderPass() {
         albedoTarget,
         normalTarget,
         armTarget,
-        emissiveTarget
+        emissiveTarget,
+        velocityTarget,
         };
 
     auto gBufferAttachments = std::vector<vk::AttachmentReference> {
@@ -518,6 +529,10 @@ void Engine::createRenderPass() {
             ,
         vk::AttachmentReference {}
             .setAttachment(5)
+            .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            ,
+        vk::AttachmentReference {}
+            .setAttachment(6)
             .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
             ,
         };
@@ -721,8 +736,8 @@ void Engine::createGBuffer() {
         .setSharingMode(vk::SharingMode::eExclusive)
         .setTiling(vk::ImageTiling::eOptimal)
         .setUsage(vk::ImageUsageFlagBits::eColorAttachment
-                // | vk::ImageUsageFlagBits::eTransientAttachment
-                | vk::ImageUsageFlagBits::eInputAttachment)
+                | vk::ImageUsageFlagBits::eInputAttachment
+                | vk::ImageUsageFlagBits::eSampled)
         ;
 
     m_albedoImage = m_device.createImage(imageCreateInfo.setFormat(m_albedoFormat));
@@ -731,6 +746,7 @@ void Engine::createGBuffer() {
     m_emissiveImage = m_device.createImage(imageCreateInfo
         .setFormat(m_emissiveFormat)
         .setUsage(imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferSrc));
+    m_velocityImage = m_device.createImage(imageCreateInfo.setFormat(m_velocityFormat));
 
     auto imageViewCreateInfo = vk::ImageViewCreateInfo {}
         .setSubresourceRange(vk::ImageSubresourceRange {
@@ -741,8 +757,12 @@ void Engine::createGBuffer() {
         .setViewType(vk::ImageViewType::e2D)
         ;
 
-    std::vector<vk::Image*> images { &m_albedoImage, &m_normalImage, &m_armImage, &m_emissiveImage };
-    std::vector<vk::DeviceMemory*> memory { &m_albedoImageMemory, &m_normalImageMemory, &m_armImageMemory, &m_emissiveImageMemory };
+    std::vector<vk::Image*> images {
+        &m_albedoImage, &m_normalImage, &m_armImage, &m_emissiveImage, &m_velocityImage
+    };
+    std::vector<vk::DeviceMemory*> memory {
+        &m_albedoImageMemory, &m_normalImageMemory, &m_armImageMemory, &m_emissiveImageMemory, &m_velocityImageMemory
+    };
 
     for (int i = 0; i < images.size(); i++) {
         auto memreqs = m_device.getImageMemoryRequirements(*images[i]);
@@ -773,6 +793,10 @@ void Engine::createGBuffer() {
     m_emissiveImageView = m_device.createImageView(imageViewCreateInfo
         .setImage(m_emissiveImage)
         .setFormat(m_emissiveFormat));
+
+    m_velocityImageView = m_device.createImageView(imageViewCreateInfo
+        .setImage(m_velocityImage)
+        .setFormat(m_velocityFormat));
     
     createGBufferDescriptorSet();
 }
@@ -840,7 +864,8 @@ void Engine::createFramebuffers() {
             m_albedoImageView,
             m_normalImageView,
             m_armImageView,
-            m_emissiveImageView
+            m_emissiveImageView,
+            m_velocityImageView,
         };
 
         createInfo.setAttachments(attachments);
@@ -920,6 +945,7 @@ void Engine::draw() {
         vk::ClearValue {}.setColor({ 0.f, 0.f, 1.f, 1.f }),    // normal
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // arm 
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // emissive
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // velocity
     };
 
     auto renderPassBeginInfo = vk::RenderPassBeginInfo {}
@@ -1050,6 +1076,10 @@ void Engine::cleanup() {
     m_device.destroyImage(m_emissiveImage);
     m_device.destroyImageView(m_emissiveImageView);
     m_device.freeMemory(m_emissiveImageMemory);
+
+    m_device.destroyImage(m_velocityImage);
+    m_device.destroyImageView(m_velocityImageView);
+    m_device.freeMemory(m_velocityImageMemory);
 
     m_device.destroyDescriptorSetLayout(m_gbufferDescriptorSetLayout);
     m_device.destroyDescriptorPool(m_gbufferDescriptorPool);

@@ -176,7 +176,7 @@ vk::PipelineColorBlendStateCreateInfo MATERIAL::getColorBlendState() {
         ;
 
     static auto attachments = std::vector<vk::PipelineColorBlendAttachmentState> {
-        attachment, attachment, attachment, attachment,
+        attachment, attachment, attachment, attachment, attachment
     };
 
     return vk::PipelineColorBlendStateCreateInfo {}

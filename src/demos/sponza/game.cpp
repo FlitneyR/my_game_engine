@@ -173,11 +173,14 @@ class Game : public mge::Engine {
             auto spotLight = m_lightSystem.getInstance(entity);
             auto transform = m_transformSystem.getComponent(entity);
 
-            transform->setPosition({ -10.f, -4.f, 2.f });
-            transform->setRotation(glm::angleAxis(glm::radians(-30.f), glm::vec3 { 1.f, 0.f, 0.f }));
+            transform->setPosition({ -10.5f, -4.5f, 2.5f });
+            transform->setRotation(
+                glm::angleAxis(glm::radians(-30.f), glm::vec3 { 1.f, 0.f, 0.f }) *
+                glm::angleAxis(glm::radians(-20.f), glm::vec3 { 0.f, 0.f, 1.f })
+            );
 
             spotLight->m_type = mge::LightInstance::e_spot;
-            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
+            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 100.f;
             spotLight->m_angle = glm::radians(45.f);
             spotLight->m_near = 0.01f;
             spotLight->m_far = 500.f;
@@ -327,13 +330,13 @@ class Game : public mge::Engine {
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
 
-        auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
+        // auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
         
-        spotLightTransform->setPosition(
-            cameraTransform->getMat4() * glm::vec4 { 0.25f, 0.f, -0.25f, 1.f }
-        );
+        // spotLightTransform->setPosition(
+        //     cameraTransform->getMat4() * glm::vec4 { 0.25f, 0.f, -0.25f, 1.f }
+        // );
 
-        spotLightTransform->setRotation(cameraTransform->getRotation());
+        // spotLightTransform->setRotation(cameraTransform->getRotation());
     }
 
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {

@@ -38,6 +38,7 @@ public:
         for (auto& [ entity, comp ] : m_components)
         if (const auto transform = transformSystem->getComponent(entity)) {
             auto instance = static_cast<ModelTransformMeshInstance*>(&r_models.at(comp.m_modelName)->getInstance(comp.m_instanceID));
+            instance->m_previousModelTransform = instance->m_modelTransform;
             instance->m_modelTransform = transform->getMat4();
         }
 

@@ -33,36 +33,51 @@ struct SimpleMaterialInstance : public MaterialInstanceBase {
 
 struct ModelTransformMeshInstance : public MeshInstanceBase {
     glm::mat4 m_modelTransform;
+    glm::mat4 m_previousModelTransform;
 
     ModelTransformMeshInstance() :
-        m_modelTransform(glm::mat4(1.f))
+        m_modelTransform(glm::mat4(1.f)),
+        m_previousModelTransform(glm::mat4(1.f))
     {}
 
     static constexpr std::vector<vk::VertexInputAttributeDescription> getAttributes(uint32_t firstAvailableLocation) {
+        auto binding = vk::VertexInputAttributeDescription {}
+            .setBinding(1)
+            .setLocation(firstAvailableLocation)
+            .setFormat(vk::Format::eR32G32B32A32Sfloat);
+
         return std::vector<vk::VertexInputAttributeDescription> {
-            vk::VertexInputAttributeDescription {}
-                .setBinding(1)
+            binding
                 .setLocation(firstAvailableLocation++)
-                .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 0 * sizeof(glm::vec4))
-                .setFormat(vk::Format::eR32G32B32A32Sfloat)
+                .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform))
                 ,
-            vk::VertexInputAttributeDescription {}
-                .setBinding(1)
+            binding
                 .setLocation(firstAvailableLocation++)
-                .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 1 * sizeof(glm::vec4))
-                .setFormat(vk::Format::eR32G32B32A32Sfloat)
+                .setOffset(binding.offset + sizeof(glm::vec4))
                 ,
-            vk::VertexInputAttributeDescription {}
-                .setBinding(1)
+            binding
                 .setLocation(firstAvailableLocation++)
-                .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 2 * sizeof(glm::vec4))
-                .setFormat(vk::Format::eR32G32B32A32Sfloat)
+                .setOffset(binding.offset + sizeof(glm::vec4))
                 ,
-            vk::VertexInputAttributeDescription {}
-                .setBinding(1)
+            binding
                 .setLocation(firstAvailableLocation++)
-                .setOffset(offsetof(ModelTransformMeshInstance, m_modelTransform) + 3 * sizeof(glm::vec4))
-                .setFormat(vk::Format::eR32G32B32A32Sfloat)
+                .setOffset(binding.offset + sizeof(glm::vec4))
+                ,
+            binding
+                .setLocation(firstAvailableLocation++)
+                .setOffset(offsetof(ModelTransformMeshInstance, m_previousModelTransform))
+                ,
+            binding
+                .setLocation(firstAvailableLocation++)
+                .setOffset(binding.offset + sizeof(glm::vec4))
+                ,
+            binding
+                .setLocation(firstAvailableLocation++)
+                .setOffset(binding.offset + sizeof(glm::vec4))
+                ,
+            binding
+                .setLocation(firstAvailableLocation++)
+                .setOffset(binding.offset + sizeof(glm::vec4))
                 ,
             };
     }

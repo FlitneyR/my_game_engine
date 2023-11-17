@@ -6,9 +6,13 @@
 namespace mge {
 
 struct CameraUniformData {
-    glm::mat4 m_view;
-    glm::mat4 m_projection;
-    glm::vec2 m_jitter;
+    alignas(16) glm::mat4 m_view;
+    alignas(16) glm::mat4 m_projection;
+    alignas(16) glm::vec2 m_jitter;
+
+    alignas(16) glm::mat4 m_previousView;
+    alignas(16) glm::mat4 m_previousProjection;
+    alignas(16) glm::vec2 m_previousJitter;
 
     static std::vector<vk::DescriptorSetLayoutBinding> getBindings() {
         return std::vector<vk::DescriptorSetLayoutBinding> {
@@ -81,8 +85,10 @@ struct Camera : public Uniform<CameraUniformData> {
         return { offsets[r_engine->m_framecount % offsets.size()] * texel, 0.f };
     }
 
-    CameraUniformData getUniformData() override {
-        CameraUniformData result;
+    void updateUniformData(CameraUniformData& uniform) override {
+        uniform.m_previousProjection = uniform.m_projection;
+        uniform.m_previousView = uniform.m_view;
+        uniform.m_previousJitter = uniform.m_jitter;
 
         glm::vec2 viewport;
 
@@ -95,22 +101,21 @@ struct Camera : public Uniform<CameraUniformData> {
 
         m_aspect = viewport.x / viewport.y;
 
-        result.m_view = glm::lookAt(m_position, m_position + m_forward, m_up);
+        uniform.m_view = glm::lookAt(m_position, m_position + m_forward, m_up);
 
         switch (m_projectionType) {
         case e_perspective:
-            result.m_projection = glm::perspective(m_fov, m_aspect, m_near, m_far);
+            uniform.m_projection = glm::perspective(m_fov, m_aspect, m_near, m_far);
             break;
         case e_orthographic:
-            result.m_projection = glm::ortho(-viewport.x / 2.f, viewport.x / 2.f, -viewport.y / 2.f, viewport.y / 2.f, m_near, m_far);
+            uniform.m_projection = glm::ortho(-viewport.x / 2.f, viewport.x / 2.f, -viewport.y / 2.f, viewport.y / 2.f, m_near, m_far);
             break;
         }
 
-        result.m_projection = glm::scale(result.m_projection, glm::vec3 { 1.f, -1.f, 1.f });
+        uniform.m_projection = glm::scale(uniform.m_projection, glm::vec3 { 1.f, -1.f, 1.f });
 
-        if (m_taaJitter) result.m_jitter = getJitter();
-
-        return result;
+        if (m_taaJitter) uniform.m_jitter = getJitter();
+        else uniform.m_jitter = glm::vec2 { 0.f, 0.f };
     }
 
     glm::vec3 getRight() {

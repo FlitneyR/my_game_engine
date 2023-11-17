@@ -15,7 +15,7 @@ class TAA {
     vk::Framebuffer m_framebuffer;
     vk::RenderPass m_renderPass;
 
-    vk::Sampler m_previousFrameSampler, m_thisFrameSampler;
+    vk::Sampler m_previousFrameSampler, m_currentFrameSampler, m_velocitySampler;
     vk::DescriptorSet m_descriptorSet;
     vk::DescriptorPool m_descriptorPool;
     vk::DescriptorSetLayout m_descriptorSetLayout;
@@ -63,7 +63,9 @@ public:
         r_engine->m_device.destroyRenderPass(m_renderPass);
 
         r_engine->m_device.destroySampler(m_previousFrameSampler);
-        r_engine->m_device.destroySampler(m_thisFrameSampler);
+        r_engine->m_device.destroySampler(m_currentFrameSampler);
+        r_engine->m_device.destroySampler(m_velocitySampler);
+
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);
         r_engine->m_device.destroyDescriptorSetLayout(m_descriptorSetLayout);
 

@@ -68,6 +68,11 @@ public:
     vk::DeviceMemory m_emissiveImageMemory;
     vk::ImageView m_emissiveImageView;
 
+    vk::Format m_velocityFormat = vk::Format::eR16G16Sfloat;
+    vk::Image m_velocityImage;
+    vk::DeviceMemory m_velocityImageMemory;
+    vk::ImageView m_velocityImageView;
+
     vk::DescriptorPool m_gbufferDescriptorPool;
     vk::DescriptorSetLayout m_gbufferDescriptorSetLayout;
     vk::DescriptorSet m_gbufferDescriptorSet;
