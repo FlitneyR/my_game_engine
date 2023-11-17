@@ -28,12 +28,29 @@ const std::vector<std::string> Engine::s_requiredDeviceExtensions {
     "VK_KHR_swapchain",
 };
 
+void callEngineKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    auto engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
+
+    engine->keyCallback(key, scancode, action, mods);
+}
+
+void callEngineMouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    auto engine = static_cast<Engine*>(glfwGetWindowUserPointer(window));
+
+    engine->mouseButtonCallback(button, action, mods);
+}
+
 void Engine::init(uint32_t initWidth, uint32_t initHeight) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
+
     m_window = glfwCreateWindow(initWidth, initHeight, getGameName().c_str(), nullptr, nullptr);
+    glfwSetWindowUserPointer(m_window, this);
+
+    glfwSetKeyCallback(m_window, callEngineKeyCallback);
+    glfwSetMouseButtonCallback(m_window, callEngineMouseButtonCallback);
 
     createInstance();
     getSurface();
@@ -545,11 +562,6 @@ void Engine::createRenderPass() {
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setInputAttachments(lightingAttachments)
             ,
-        // vk::SubpassDescription {}
-        //     .setColorAttachments(emissiveAttachment)
-        //     .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
-        //     .setInputAttachments(emissiveAttachment)
-        //     ,
         };
     
     std::vector<vk::SubpassDependency> dependencies {
@@ -660,6 +672,8 @@ void Engine::createShadowMappingRenderPass() {
 
 vk::ShaderModule Engine::loadShaderModule(std::string path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
+    if (file.fail()) throw std::runtime_error("Failed to open shader module file: " + path);
+
     unsigned int num_bytes = file.tellg(); file.seekg(0);
 
     std::vector<uint32_t> code(num_bytes / 4);
@@ -980,7 +994,6 @@ void Engine::draw() {
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
             .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-            .setDstAccessMask({})
         );
 
     cmd.end();
@@ -1014,6 +1027,7 @@ void Engine::draw() {
     } else vk::resultCheck(presentResult, "Failed to present render result");
 
     m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
+    m_framecount++;
 }
 
 void Engine::cleanup() {

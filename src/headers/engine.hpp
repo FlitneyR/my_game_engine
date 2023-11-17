@@ -21,6 +21,7 @@ public:
 
     virtual constexpr int getMaxFramesInFlight() { return 3; }
     int m_currentInFlightFrame = 0;
+    uint32_t m_framecount = 0;
 
     std::chrono::high_resolution_clock::time_point m_startTime, m_lastFrameTime;
 
@@ -114,7 +115,7 @@ public:
     void getPhysicalDevice();
     void createLogicalDevice();
     void createSwapchain();
-    void rebuildSwapchain();
+    virtual void rebuildSwapchain();
     void createSynchronisers();
     void createDepthBuffer();
     void createRenderPass();
@@ -128,7 +129,6 @@ public:
 
     uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 
-    // === main loop functions ===
     void draw();
 
     void init(uint32_t initWidth, uint32_t initHeight);
@@ -144,6 +144,9 @@ public:
     virtual void recordGBufferDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordLightingDrawCommands(vk::CommandBuffer cmd) {}
     virtual void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) {}
+
+    virtual void keyCallback(int key, int scancode, int action, int mods) {}
+    virtual void mouseButtonCallback(int button, int action, int mods) {}
 
     virtual void physicsUpdate(double deltaTime) {}
     virtual void update(double deltaTime) {}

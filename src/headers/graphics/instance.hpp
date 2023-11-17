@@ -306,7 +306,8 @@ void NTEXTURE_MATERIAL_INSTANCE::generateMipMaps(uint32_t index) {
     vk::CommandBuffer cmd = r_engine->m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo {}
         .setCommandBufferCount(1)
         .setCommandPool(r_engine->m_commandPool)
-        .setLevel(vk::CommandBufferLevel::ePrimary))[0];
+        .setLevel(vk::CommandBufferLevel::ePrimary)
+        )[0];
     
     cmd.begin(vk::CommandBufferBeginInfo {}
         .setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));

@@ -96,11 +96,7 @@ void main() {
     vec3 specular = numerator / denominator;
     
     float NdotL = max(dot(normal, lightDirection), 0.0);
-    vec3 illumination = (kD * ao * albedo / PI + specular) * radiance * NdotL;
-
-    vec3 colour = illumination;
-
-    // colour = colour / (colour + 1.0);
+    vec3 colour = (kD * ao * albedo / PI + specular) * radiance * NdotL;
    
     f_emissive = vec4(colour, 1.0);
 }

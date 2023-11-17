@@ -16,6 +16,7 @@ layout(location = 4) out vec2 v_texcoord;
 layout(set = 0, binding = 0) uniform Camera {
     mat4 view;
     mat4 perspective;
+    vec2 jitter;
 } camera;
 
 void main() {
@@ -29,4 +30,6 @@ void main() {
     v_texcoord = texcoord;
 
     gl_Position = camera.perspective * camera.view * worldpos;
+
+    gl_Position.xy += camera.jitter * gl_Position.w;
 }

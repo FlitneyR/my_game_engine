@@ -6,7 +6,12 @@ CFLAGS = $(INCLUDES) -std=c++2a -g -O2 -c
 
 VULKAN_SDK_LIB_PATH = /Users/flitneyr/VulkanSDK/1.3.261.1/macOS/lib
 
-MAIN_DEPENDENCIES = build/engine.o build/objloader.o build/instance.o build/light.o build/postProcessing.o
+MAIN_DEPENDENCIES = build/engine.o \
+					build/objloader.o \
+					build/instance.o \
+					build/light.o \
+					build/postProcessing.o \
+					build/taa.o \
 
 COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/pbr.frag.spv \
@@ -19,6 +24,7 @@ COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/shadowMapLight.frag.spv \
 				   build/fullscreen.vert.spv \
 				   build/hdrColourCorrection.frag.spv \
+				   build/taa.frag.spv \
 
 # bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
 main: bin/main shaders

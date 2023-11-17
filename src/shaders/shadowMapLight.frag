@@ -12,6 +12,7 @@ layout(location = 0) out vec4 f_emissive;
 layout(set = 0, binding = 0) uniform Camera {
     mat4 view;
     mat4 perspective;
+    vec2 jitter;
 } camera;
 
 layout(set = 1, binding = 0) uniform sampler2D depthTex;
@@ -57,6 +58,7 @@ void main() {
     mat4 inverseView = inverse(camera.view);
 
     vec4 viewSpace = vec4(v_screenCoord, depth, 1);
+    viewSpace.xy -= camera.jitter;
     vec4 worldPos = inverseView * inversePerspective * viewSpace;
     worldPos /= worldPos.w;
     
@@ -106,10 +108,7 @@ void main() {
     vec3 specular = numerator / denominator;
     
     float NdotL = max(dot(normal, lightDirection), 0.0);
-    vec3 illumination = (kD * ao * albedo / PI + specular) * radiance * NdotL;
-
-    vec3 colour = illumination;
-    // colour /= colour + 1.0;
+    vec3 colour = (kD * ao * albedo / PI + specular) * radiance * NdotL;
    
     f_emissive = vec4(colour, 1.0);
 }

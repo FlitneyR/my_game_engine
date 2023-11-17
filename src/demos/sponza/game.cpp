@@ -5,6 +5,7 @@
 #include <camera.hpp>
 #include <objloader.hpp>
 #include <postProcessing.hpp>
+#include <taa.hpp>
 
 #include <vector>
 #include <string>
@@ -70,19 +71,16 @@ class Game : public mge::Engine {
     mge::ecs::Entity m_cameraEntity, m_spotLightEntity;
 
     mge::HDRColourCorrection m_hdrColourCorrection;
+    mge::TAA m_taa;
     
     void start() override {
-        glm::vec<2, int> windowSize;
-        glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
-        glfwSetCursorPos(m_window, windowSize.x / 2, windowSize.y / 2);
-        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-
         m_ecsManager.r_engine = this;
         m_ecsManager.addSystem("Model", &m_modelSystem);
         m_ecsManager.addSystem("Transform", &m_transformSystem);
         m_ecsManager.addSystem("Light", &m_lightSystem);
 
         m_hdrColourCorrection = mge::HDRColourCorrection(*this);
+        m_taa = mge::TAA(*this);
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"),
@@ -208,6 +206,7 @@ class Game : public mge::Engine {
         m_camera->m_position = glm::vec3 { 0.f, 0.f, 2.f };
         m_camera->m_forward = glm::vec3 { 1.f, 0.f, 0.f };
         m_camera->m_up = glm::vec3 { 0.f, 0.f, 1.f };
+        m_camera->m_taaJitter = true;
 
         m_camera->setup();
 
@@ -221,15 +220,10 @@ class Game : public mge::Engine {
         m_modelMaterial->setup();
 
         m_hdrColourCorrection.setup();
+        m_taa.setup();
     }
 
     void update(double deltaTime) override {
-        if (glfwGetKey(m_window, GLFW_KEY_ESCAPE))
-            glfwSetInputMode(m_window, GLFW_CURSOR,
-                glfwGetInputMode(m_window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN
-                    ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
-
-        
         updateCameraPosition(deltaTime);
 
         m_camera->updateBuffer();
@@ -239,6 +233,37 @@ class Game : public mge::Engine {
 
         for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) light->updateInstanceBuffer();
         for (auto& model : m_models) model->updateInstanceBuffer();
+    }
+
+    void keyCallback(int key, int scancode, int action, int mods) override {
+        if (action == GLFW_PRESS)
+        switch (key) {
+        case GLFW_KEY_ESCAPE: {
+            switch (glfwGetInputMode(m_window, GLFW_CURSOR)) {
+            case GLFW_CURSOR_HIDDEN:
+                glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                break;
+            default:
+                glfwSetWindowShouldClose(m_window, true);
+                break;
+            }
+        }
+        }
+    }
+
+    void mouseButtonCallback(int button, int action, int mods) override {
+        if (button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS) {
+            reCentreMouse();
+            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        }
+    }
+
+    void reCentreMouse() {
+        glm::vec<2, int> windowSize;
+        glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
+
+        glm::vec<2, double> center = glm::vec<2, double>(windowSize) / 2.0;
+        glfwSetCursorPos(m_window, center.x, center.y);
     }
 
     void updateCameraPosition(float deltaTime) {
@@ -351,6 +376,17 @@ class Game : public mge::Engine {
 
     void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
         m_hdrColourCorrection.draw(cmd);
+        m_taa.draw(cmd);
+    }
+
+    void rebuildSwapchain() override {
+        mge::Engine::rebuildSwapchain();
+
+        m_hdrColourCorrection.cleanup();
+        m_taa.cleanup();
+
+        m_hdrColourCorrection.setup();
+        m_taa.setup();
     }
 
     void end() override {
@@ -378,5 +414,6 @@ class Game : public mge::Engine {
         m_shadowMappedLightMaterial->cleanup();
 
         m_hdrColourCorrection.cleanup();
+        m_taa.cleanup();
     }
 };

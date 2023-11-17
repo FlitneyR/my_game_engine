@@ -8,6 +8,7 @@ namespace mge {
 struct CameraUniformData {
     glm::mat4 m_view;
     glm::mat4 m_projection;
+    glm::vec2 m_jitter;
 
     static std::vector<vk::DescriptorSetLayoutBinding> getBindings() {
         return std::vector<vk::DescriptorSetLayoutBinding> {
@@ -31,6 +32,8 @@ struct Camera : public Uniform<CameraUniformData> {
     float m_near;
     float m_far;
 
+    bool m_taaJitter = false;
+
     std::optional<glm::vec2> m_shadowMapRange;
 
     enum ProjectionType {
@@ -46,6 +49,36 @@ struct Camera : public Uniform<CameraUniformData> {
 
         m_near = 0.01f;
         m_far = 1000.f;
+    }
+
+    glm::vec3 getJitter() {
+        static const std::vector<glm::vec2> offsets {
+            { 0.500000, 0.333333 },
+            { 0.250000, 0.666667 },
+            { 0.750000, 0.111111 },
+            { 0.125000, 0.444444 },
+            { 0.625000, 0.777778 },
+            { 0.375000, 0.222222 },
+            { 0.875000, 0.555556 },
+            { 0.062500, 0.888889 },
+            { 0.562500, 0.037037 },
+            { 0.312500, 0.370370 },
+            { 0.812500, 0.703704 },
+            { 0.187500, 0.148148 },
+            { 0.687500, 0.481481 },
+            { 0.437500, 0.814815 },
+            { 0.937500, 0.259259 },
+            { 0.031250, 0.592593 },
+        };
+
+        glm::vec2 texel {
+            r_engine->m_swapchainExtent.width,
+            r_engine->m_swapchainExtent.height
+        };
+
+        texel = 1.f / texel;
+
+        return { offsets[r_engine->m_framecount % offsets.size()] * texel, 0.f };
     }
 
     CameraUniformData getUniformData() override {
@@ -74,6 +107,8 @@ struct Camera : public Uniform<CameraUniformData> {
         }
 
         result.m_projection = glm::scale(result.m_projection, glm::vec3 { 1.f, -1.f, 1.f });
+
+        if (m_taaJitter) result.m_jitter = getJitter();
 
         return result;
     }
