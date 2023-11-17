@@ -231,7 +231,7 @@ class Game : public mge::Engine {
 
         m_camera->updateBuffer();
         m_modelSystem.updateTransforms();
-        m_lightSystem.updateTransforms();
+        m_lightSystem.update();
         m_light->updateInstanceBuffer();
 
         for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) light->updateInstanceBuffer();

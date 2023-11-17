@@ -7,7 +7,7 @@ layout(location = 3) in vec3 bitangent;
 layout(location = 4) in vec2 texcoord;
 layout(location = 5) in mat4 modelTransform;
 
-layout(location = 1) out vec2 v_texcoord;
+layout(location = 0) out vec2 v_texcoord;
 
 layout(set = 0, binding = 0) uniform Camera {
     mat4 view;
@@ -21,5 +21,7 @@ layout(set = 0, binding = 0) uniform Camera {
 
 void main() {
     gl_Position = camera.perspective * camera.view * modelTransform * position;
+    gl_Position.xy += camera.jitter * gl_Position.w;
+
     v_texcoord = texcoord;
 }

@@ -5,6 +5,8 @@
 #include <skybox.hpp>
 #include <lightInstance.hpp>
 #include <modelInstance.hpp>
+#include <postProcessing.hpp>
+#include <taa.hpp>
 
 #include "logic.hpp"
 
@@ -44,6 +46,10 @@ class Game : public mge::Engine {
     std::unique_ptr<mge::LightMaterial> m_lightMaterial;
     std::unique_ptr<mge::LightMaterial::Instance> m_lightMaterialInstance;
 
+    std::unique_ptr<mge::ShadowMappedLight> m_shadowMappedLightPrototype;
+    std::unique_ptr<mge::ShadowMappedLightMaterial> m_shadowMappedLightMaterial;
+    std::unique_ptr<mge::ShadowMappedLight::Material::Instance> m_shadowMappedLightMaterialInstance;
+
     std::unique_ptr<mge::Camera> m_camera;
 
     mge::ecs::ECSManager m_ecsManager;
@@ -57,10 +63,16 @@ class Game : public mge::Engine {
     mge::ecs::ModelSystem m_modelSystem;
     mge::ecs::LightSystem m_lightSystem;
 
+    mge::HDRColourCorrection m_hdrColourCorrection;
+    mge::TAA m_taa;
+
     std::string getGameName() override { return "Asteroids"; }
     
     void start() override {
         std::srand(std::chrono::system_clock::now().time_since_epoch().count());
+
+        m_hdrColourCorrection = mge::HDRColourCorrection(*this);
+        m_taa = mge::TAA(*this);
 
         m_camera = std::make_unique<mge::Camera>(*this);
         m_camera->m_near = 0.1f;
@@ -69,11 +81,17 @@ class Game : public mge::Engine {
         m_camera->m_position = glm::vec3 { 0.f, 0.f, 0.f };
         m_camera->m_forward = glm::vec3 { 0.f, 1.f, 0.f };
         m_camera->m_up = glm::vec3 { 0.f, 0.f, 1.f };
+        m_camera->m_taaJitter = true;
 
         m_asteroidMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/lowpoly_asteroid.obj"));
         m_spaceshipMesh = std::make_unique<ObjectModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/smoother_spaceship.obj"));
         m_skyboxMesh = std::make_unique<SkyboxModel::Mesh>(mge::loadObjMesh(*this, "assets/asteroids/skybox.obj"));
-        m_lightQuad = std::make_unique<mge::Light::Mesh>(makeFullScreenQuad(*this));
+        m_lightQuad = std::make_unique<mge::Light::Mesh>(mge::Mesh<mge::PointVertex>(*this, {
+            {{ -1.f, -1.f, 0.f }},
+            {{ -1.f,  3.f, 0.f }},
+            {{  3.f, -1.f, 0.f }},
+        }, { 0, 1, 2, }));
+
         m_bulletMesh = std::make_unique<BulletModel::Mesh>(
             *this,
             std::vector<mge::PointColorVertex> {
@@ -111,7 +129,10 @@ class Game : public mge::Engine {
             loadShaderModule("build/bullet.vert.spv"), loadShaderModule("build/bullet.frag.spv"));
         
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/fullscreenLight.frag.spv"));
+            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/light.frag.spv"));
+
+        m_shadowMappedLightMaterial = std::make_unique<mge::ShadowMappedLightMaterial>(*this,
+            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/shadowMapLight.frag.spv"));
 
         m_asteroidMaterialInstance = std::make_unique<ObjectModel::Material::Instance>(m_objectMaterial->makeInstance());
         m_asteroidMaterialInstance->setup({ m_asteroidAlbedo, m_asteroidARM, m_asteroidNormal });
@@ -128,20 +149,26 @@ class Game : public mge::Engine {
         m_lightMaterialInstance = std::make_unique<mge::Light::Material::Instance>(m_lightMaterial->makeInstance());
         m_lightMaterialInstance->setup();
 
+        m_shadowMappedLightMaterialInstance = std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance());
+        m_shadowMappedLightMaterialInstance->setup(1, 1);
+
         m_asteroidModel = std::make_unique<ObjectModel>(*this, *m_asteroidMesh, *m_objectMaterial, *m_asteroidMaterialInstance);
         m_spaceshipModel = std::make_unique<ObjectModel>(*this, *m_spaceshipMesh, *m_objectMaterial, *m_spaceshipMaterialInstance);
         m_skyboxModel = std::make_unique<SkyboxModel>(*this, *m_skyboxMesh, *m_skyboxMaterial, *m_skyboxMaterialInstance);
         m_bulletModel = std::make_unique<BulletModel>(*this, *m_bulletMesh, *m_bulletMaterial, *m_bulletMaterialInstance);
         m_light = std::make_unique<mge::Light>(*this, *m_lightQuad, *m_lightMaterial, *m_lightMaterialInstance);
+        m_shadowMappedLightPrototype = std::make_unique<mge::ShadowMappedLight>(*this, *m_lightQuad, *m_shadowMappedLightMaterial, *m_shadowMappedLightMaterialInstance);
         
         m_skyboxModel->makeInstance();
 
-        m_lightSystem.r_light = m_light.get();
+        m_lightSystem.r_shadowlessLight = m_light.get();
+        m_lightSystem.r_shadowMappedLightPrototype = m_shadowMappedLightPrototype.get();
 
         m_modelSystem.addModel("Asteroid", m_asteroidModel.get());
         m_modelSystem.addModel("Spaceship", m_spaceshipModel.get());
         m_modelSystem.addModel("Bullet", m_bulletModel.get());
 
+        m_ecsManager.r_engine = this;
         m_ecsManager.addSystem("Asteroid", &m_asteroidSystem);
         m_ecsManager.addSystem("Bullet", &m_bulletSystem);
         m_ecsManager.addSystem("Spaceship", &m_spaceshipSystem);
@@ -150,6 +177,33 @@ class Game : public mge::Engine {
         m_ecsManager.addSystem("Model", &m_modelSystem);
         m_ecsManager.addSystem("Light", &m_lightSystem);
         m_ecsManager.addSystem("Collision", &m_collisionSystem);
+
+        m_camera->setup();
+
+        m_lightMaterial->setup();
+        m_lightQuad->setup();
+        m_light->setup();
+
+        m_shadowMappedLightMaterial->setup();
+
+        m_objectMaterial->setup();
+
+        m_asteroidMesh->setup();
+        m_asteroidModel->setup();
+
+        m_spaceshipMesh->setup();
+        m_spaceshipModel->setup();
+
+        m_skyboxMaterial->setup();
+        m_skyboxMesh->setup();
+        m_skyboxModel->setup();
+
+        m_bulletMaterial->setup();
+        m_bulletMesh->setup();
+        m_bulletModel->setup();
+
+        m_hdrColourCorrection.setup();
+        m_taa.setup();
         
         makeTemplates();
 
@@ -183,28 +237,6 @@ class Game : public mge::Engine {
 
         m_camera->m_position = spaceshipTransform->getPosition() + spaceshipTransform->getUp();
         m_camera->m_up = spaceshipTransform->getUp();
-
-        m_camera->setup();
-
-        m_lightMaterial->setup();
-        m_lightQuad->setup();
-        m_light->setup();
-
-        m_objectMaterial->setup();
-
-        m_asteroidMesh->setup();
-        m_asteroidModel->setup();
-
-        m_spaceshipMesh->setup();
-        m_spaceshipModel->setup();
-
-        m_skyboxMaterial->setup();
-        m_skyboxMesh->setup();
-        m_skyboxModel->setup();
-
-        m_bulletMaterial->setup();
-        m_bulletMesh->setup();
-        m_bulletModel->setup();
     }
 
     void makeTemplates() {
@@ -266,7 +298,8 @@ class Game : public mge::Engine {
             m_transformSystem.addComponent(entity);
             auto collision = m_collisionSystem.addComponent(entity);
             auto rigidbody = m_rigidbodySystem.addComponent(entity);
-            m_lightSystem.addComponent(entity);
+
+            m_lightSystem.addComponentShadowMapped(entity, 2048);
             auto spaceshipLight = m_lightSystem.getInstance(entity);
 
             collision->setupSphere(2.f);
@@ -274,30 +307,46 @@ class Game : public mge::Engine {
             rigidbody->m_physicsType = rigidbody->e_dynamic;
             rigidbody->m_mass = 50.f;
 
-            spaceshipLight->m_colour = 2'000.f * glm::vec3 { 0.5f, 0.75f, 1.0f };
+            spaceshipLight->m_colour = 10'000.f * glm::vec3 { 0.5f, 0.75f, 1.0f };
             spaceshipLight->m_type = spaceshipLight->e_spot;
-            spaceshipLight->m_angle = glm::radians(15.f);
+            spaceshipLight->m_angle = glm::radians(30.f);
+            spaceshipLight->m_near = 0.01f;
+            spaceshipLight->m_far = 1'000.f;
 
             return entity;
         });
     }
 
-    void recordGBufferDrawCommands(vk::CommandBuffer cmd) override {
-        m_camera->updateBuffer();
-        m_spaceshipModel->updateInstanceBuffer();
-        m_skyboxModel->updateInstanceBuffer();
-        m_bulletModel->updateInstanceBuffer();
-        m_asteroidModel->updateInstanceBuffer();
+    void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
+        for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) {
+            light->m_materialInstance.beginShadowMapRenderPass(cmd, light->getInstance(0));
+            recordShadowMapGeometryDrawCommands(cmd, light->m_materialInstance.m_shadowMapView);
+            cmd.endRenderPass();
+        }
+    }
 
+    void recordShadowMapGeometryDrawCommands(vk::CommandBuffer cmd, mge::Camera& shadowMapView) override {
+        m_objectMaterial->bindShadowMapPipeline(cmd);
+        m_objectMaterial->bindUniform(cmd, shadowMapView);
+
+        // m_spaceshipModel->drawInstances(cmd);
+        
+        m_asteroidModel->drawInstances(cmd);
+    }
+
+    void recordGBufferDrawCommands(vk::CommandBuffer cmd) override {
+        m_skyboxMaterial->bindPipeline(cmd);
         m_skyboxMaterial->bindUniform(cmd, *m_camera);
         m_skyboxModel->drawInstances(cmd);
 
+        m_objectMaterial->bindPipeline(cmd);
         m_objectMaterial->bindUniform(cmd, *m_camera);
 
         m_spaceshipModel->drawInstances(cmd);
         
         m_asteroidModel->drawInstances(cmd);
 
+        m_bulletMaterial->bindPipeline(cmd);
         m_bulletMaterial->bindUniform(cmd, *m_camera);
         m_bulletModel->drawInstances(cmd);
     }
@@ -305,8 +354,28 @@ class Game : public mge::Engine {
     void recordLightingDrawCommands(vk::CommandBuffer cmd) override {
         m_light->updateInstanceBuffer();
 
+        m_lightMaterial->bindPipeline(cmd);
         m_lightMaterial->bindUniform(cmd, *m_camera);
         m_light->drawInstances(cmd);
+
+        m_shadowMappedLightMaterial->bindPipeline(cmd);
+        m_shadowMappedLightMaterial->bindUniform(cmd, *m_camera);
+        for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) light->drawInstances(cmd);
+    }
+
+    void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
+        m_hdrColourCorrection.draw(cmd);
+        m_taa.draw(cmd);
+    }
+
+    void rebuildSwapchain() override {
+        mge::Engine::rebuildSwapchain();
+
+        m_hdrColourCorrection.cleanup();
+        m_taa.cleanup();
+
+        m_hdrColourCorrection.setup();
+        m_taa.setup();
     }
 
     void update(double deltaTime) override {
@@ -369,7 +438,13 @@ class Game : public mge::Engine {
         m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4 { 1.f }, m_camera->m_position);
 
         m_modelSystem.updateTransforms();
-        m_lightSystem.updateTransforms();
+        m_lightSystem.update();
+
+        m_camera->updateBuffer();
+        m_spaceshipModel->updateInstanceBuffer();
+        m_skyboxModel->updateInstanceBuffer();
+        m_bulletModel->updateInstanceBuffer();
+        m_asteroidModel->updateInstanceBuffer();
     }
 
     void end() override {
@@ -379,6 +454,17 @@ class Game : public mge::Engine {
         m_lightQuad->cleanup();
         m_lightMaterialInstance->cleanup();
         m_lightMaterial->cleanup();
+
+        for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) {
+            light->cleanup();
+            light->m_materialInstance.cleanup();
+        }
+
+        m_shadowMappedLightMaterialInstance->cleanup();
+        m_shadowMappedLightMaterial->cleanup();
+
+        m_hdrColourCorrection.cleanup();
+        m_taa.cleanup();
 
         m_asteroidModel->cleanup();
         m_asteroidMesh->cleanup();

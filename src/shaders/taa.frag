@@ -11,7 +11,13 @@ void main() {
     vec2 texel = 1.0 / textureSize(t_previousFrame, 0);
     vec2 uv = gl_FragCoord.xy * texel;
 
+    vec3 currentFrameColour = texture(t_currentFrame, uv).rgb;
+
     float depth = texture(t_depth, uv).r;
+    if (depth == 1.0) {
+        f_colour = vec4(currentFrameColour, 1.0);
+        return;
+    }
     
     vec2 closestUV = uv;
     for (int i = -1; i <= 1; i++)
@@ -23,8 +29,6 @@ void main() {
             closestUV = uv + deltaUV;
         }
     }
-
-    vec3 currentFrameColour = texture(t_currentFrame, uv).rgb;
 
     vec3 velocity = texture(t_velocity, closestUV).rgb;
 

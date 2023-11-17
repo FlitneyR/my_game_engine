@@ -1,4 +1,4 @@
-#include "demos/sponza/game.cpp"
+#include "demos/asteroids/game.cpp"
 
 int main(const int argc, const char** const argv)
 {

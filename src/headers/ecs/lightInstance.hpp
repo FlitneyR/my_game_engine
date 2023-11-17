@@ -72,7 +72,7 @@ public:
         } else return r_shadowlessLight;
     }
 
-    void updateTransforms() {
+    void update() {
         auto transformSystem = r_ecsManager->getSystem<TransformComponent>("Transform");
 
         for (auto& [ entity, comp ] : m_components)
@@ -83,6 +83,8 @@ public:
         }
 
         r_shadowlessLight->updateInstanceBuffer();
+
+        for (auto& [ _, light ] : m_shadowMappedLights) light->updateInstanceBuffer();
     }
 
     void removeComponent(const Entity& entity) override {

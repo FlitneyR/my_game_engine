@@ -996,12 +996,6 @@ void Engine::draw() {
         })
         ;
 
-    cmd.blitImage(
-        m_emissiveImage, vk::ImageLayout::eTransferSrcOptimal,
-        m_swapchainImages[imageIndex], vk::ImageLayout::eTransferDstOptimal,
-        region, vk::Filter::eLinear
-    );
-
     auto imageBarrier = vk::ImageMemoryBarrier {}
         .setSrcQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
         .setDstQueueFamilyIndex(*m_queueFamilies.graphicsFamily)
@@ -1011,6 +1005,23 @@ void Engine::draw() {
             0, 1
         })
         ;
+    
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits::eTransfer,
+        {}, {}, {},
+        vk::ImageMemoryBarrier { imageBarrier }
+            .setImage(m_emissiveImage)
+            .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
+    );
+
+    cmd.blitImage(
+        m_emissiveImage, vk::ImageLayout::eTransferSrcOptimal,
+        m_swapchainImages[imageIndex], vk::ImageLayout::eTransferDstOptimal,
+        region, vk::Filter::eLinear
+    );
 
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer,
