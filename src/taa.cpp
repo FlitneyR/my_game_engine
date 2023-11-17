@@ -111,6 +111,12 @@ void TAA::setupDescriptorSetLayout() {
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
             .setStageFlags(vk::ShaderStageFlagBits::eFragment)
             ,
+        vk::DescriptorSetLayoutBinding {}
+            .setBinding(3)
+            .setDescriptorCount(1)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+            .setStageFlags(vk::ShaderStageFlagBits::eFragment)
+            ,
     };
 
     m_descriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo {}
@@ -121,15 +127,7 @@ void TAA::setupDescriptorSetLayout() {
 void TAA::setupDescriptorPool() {
     std::vector<vk::DescriptorPoolSize> poolsizes {
         vk::DescriptorPoolSize {}
-            .setDescriptorCount(1)
-            .setType(vk::DescriptorType::eCombinedImageSampler)
-            ,
-        vk::DescriptorPoolSize {}
-            .setDescriptorCount(1)
-            .setType(vk::DescriptorType::eCombinedImageSampler)
-            ,
-        vk::DescriptorPoolSize {}
-            .setDescriptorCount(1)
+            .setDescriptorCount(4)
             .setType(vk::DescriptorType::eCombinedImageSampler)
             ,
     };
@@ -151,6 +149,7 @@ void TAA::setupSamplers() {
     m_previousFrameSampler = r_engine->m_device.createSampler(createInfo);
     m_currentFrameSampler = r_engine->m_device.createSampler(createInfo);
     m_velocitySampler = r_engine->m_device.createSampler(createInfo);
+    m_depthSampler = r_engine->m_device.createSampler(createInfo);
 }
 
 void TAA::setupDescriptorSet() {
@@ -160,36 +159,38 @@ void TAA::setupDescriptorSet() {
         .setSetLayouts(m_descriptorSetLayout)
         )[0];
     
+    auto descriptorWrite = vk::WriteDescriptorSet {}
+        .setDescriptorCount(1)
+        .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+        .setDstSet(m_descriptorSet)
+        .setImageInfo(vk::DescriptorImageInfo {}
+            .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal))
+        ;
+    
     r_engine->m_device.updateDescriptorSets(std::vector<vk::WriteDescriptorSet> {
-        vk::WriteDescriptorSet {}
+        vk::WriteDescriptorSet { descriptorWrite }
             .setDstBinding(0)
-            .setDescriptorCount(1)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-            .setDstSet(m_descriptorSet)
-            .setImageInfo(vk::DescriptorImageInfo {}
+            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(m_previousFrameView)
-                .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setSampler(m_previousFrameSampler))
             ,
-        vk::WriteDescriptorSet {}
+        vk::WriteDescriptorSet { descriptorWrite }
             .setDstBinding(1)
-            .setDescriptorCount(1)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-            .setDstSet(m_descriptorSet)
-            .setImageInfo(vk::DescriptorImageInfo {}
+            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(m_currentFrameView)
-                .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setSampler(m_currentFrameSampler))
             ,
-        vk::WriteDescriptorSet {}
+        vk::WriteDescriptorSet { descriptorWrite }
             .setDstBinding(2)
-            .setDescriptorCount(1)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-            .setDstSet(m_descriptorSet)
-            .setImageInfo(vk::DescriptorImageInfo {}
+            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(r_engine->m_velocityImageView)
-                .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setSampler(m_velocitySampler))
+            ,
+        vk::WriteDescriptorSet { descriptorWrite }
+            .setDstBinding(3)
+            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+                .setImageView(r_engine->m_depthImageView)
+                .setSampler(m_depthSampler))
             ,
         }, {});
 }

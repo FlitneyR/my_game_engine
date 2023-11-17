@@ -329,14 +329,6 @@ class Game : public mge::Engine {
         m_camera->m_position = cameraTransform->getPosition();
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
-
-        // auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
-        
-        // spotLightTransform->setPosition(
-        //     cameraTransform->getMat4() * glm::vec4 { 0.25f, 0.f, -0.25f, 1.f }
-        // );
-
-        // spotLightTransform->setRotation(cameraTransform->getRotation());
     }
 
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {

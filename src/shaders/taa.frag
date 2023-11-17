@@ -5,14 +5,28 @@ layout(location = 0) out vec4 f_colour;
 layout(set = 0, binding = 0) uniform sampler2D t_previousFrame;
 layout(set = 0, binding = 1) uniform sampler2D t_currentFrame;
 layout(set = 0, binding = 2) uniform sampler2D t_velocity;
+layout(set = 0, binding = 3) uniform sampler2D t_depth;
 
 void main() {
     vec2 texel = 1.0 / textureSize(t_previousFrame, 0);
     vec2 uv = gl_FragCoord.xy * texel;
 
+    float depth = texture(t_depth, uv).r;
+    
+    vec2 closestUV = uv;
+    for (int i = -1; i <= 1; i++)
+    for (int j = -1; j <= 1; j++) {
+        vec2 deltaUV = vec2(i, j) * texel;
+        float s_depth = texture(t_depth, uv + deltaUV).r;
+        if (s_depth < depth) {
+            depth = s_depth;
+            closestUV = uv + deltaUV;
+        }
+    }
+
     vec3 currentFrameColour = texture(t_currentFrame, uv).rgb;
 
-    vec3 velocity = texture(t_velocity, uv).rgb;
+    vec3 velocity = texture(t_velocity, closestUV).rgb;
 
     vec2 previousUV = uv - velocity.xy * 0.5;
 

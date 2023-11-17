@@ -421,7 +421,9 @@ void Engine::createDepthBuffer() {
         .setSamples(vk::SampleCountFlagBits::e1)
         .setSharingMode(vk::SharingMode::eExclusive)
         .setTiling(vk::ImageTiling::eOptimal)
-        .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment)
+        .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment
+                | vk::ImageUsageFlagBits::eInputAttachment
+                | vk::ImageUsageFlagBits::eSampled)
         ;
 
     m_depthImage = m_device.createImage(bufferCreateInfo);
