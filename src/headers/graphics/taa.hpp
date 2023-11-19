@@ -8,9 +8,9 @@ namespace mge {
 class TAA {
     Engine* r_engine;
 
-    vk::Image m_currentFrame, m_previousFrame, m_taaTarget;
-    vk::ImageView m_currentFrameView, m_previousFrameView, m_taaTargetView;
-    vk::DeviceMemory m_currentFrameMemory, m_previousFrameMemory, m_taaTargetMemory;
+    vk::Image m_previousFrame, m_taaTarget;
+    vk::ImageView m_previousFrameView, m_taaTargetView;
+    vk::DeviceMemory m_previousFrameMemory, m_taaTargetMemory;
 
     vk::Framebuffer m_taaFramebuffer, m_sharpenFramebuffer;
     vk::RenderPass m_taaRenderPass, m_sharpenRenderPass;
@@ -50,15 +50,15 @@ public:
 
     void cleanup() {
         r_engine->m_device.destroyImage(m_previousFrame);
-        r_engine->m_device.destroyImage(m_currentFrame);
+        // r_engine->m_device.destroyImage(m_currentFrame);
         r_engine->m_device.destroyImage(m_taaTarget);
 
         r_engine->m_device.destroyImageView(m_previousFrameView);
-        r_engine->m_device.destroyImageView(m_currentFrameView);
+        // r_engine->m_device.destroyImageView(m_currentFrameView);
         r_engine->m_device.destroyImageView(m_taaTargetView);
 
         r_engine->m_device.freeMemory(m_previousFrameMemory);
-        r_engine->m_device.freeMemory(m_currentFrameMemory);
+        // r_engine->m_device.freeMemory(m_currentFrameMemory);
         r_engine->m_device.freeMemory(m_taaTargetMemory);
 
         r_engine->m_device.destroyFramebuffer(m_taaFramebuffer);

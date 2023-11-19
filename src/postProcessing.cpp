@@ -6,7 +6,7 @@ void HDRColourCorrection::setupRenderPass() {
     std::vector<vk::AttachmentDescription> attachmentDescriptions {
         vk::AttachmentDescription {}
             .setInitialLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-            .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
             .setFormat(r_engine->m_emissiveFormat)
             .setLoadOp(vk::AttachmentLoadOp::eLoad)
             .setStoreOp(vk::AttachmentStoreOp::eStore)

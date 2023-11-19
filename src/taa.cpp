@@ -16,7 +16,6 @@ void TAA::setupImages() {
                 | vk::ImageUsageFlagBits::eSampled);
 
     m_previousFrame = r_engine->m_device.createImage(createInfo);
-    m_currentFrame = r_engine->m_device.createImage(createInfo);
 
     m_taaTarget = r_engine->m_device.createImage(createInfo
         .setUsage(vk::ImageUsageFlagBits::eColorAttachment
@@ -36,11 +35,9 @@ void TAA::allocateImages() {
         ));
 
     m_previousFrameMemory = r_engine->m_device.allocateMemory(allocInfo);
-    m_currentFrameMemory = r_engine->m_device.allocateMemory(allocInfo);
     m_taaTargetMemory = r_engine->m_device.allocateMemory(allocInfo);
     
     r_engine->m_device.bindImageMemory(m_previousFrame, m_previousFrameMemory, {});
-    r_engine->m_device.bindImageMemory(m_currentFrame, m_currentFrameMemory, {});
     r_engine->m_device.bindImageMemory(m_taaTarget, m_taaTargetMemory, {});
 }
 
@@ -70,7 +67,6 @@ void TAA::transitionImageLayouts() {
         {}, {}, {},
         {
             barrier.setImage(m_previousFrame),
-            barrier.setImage(m_currentFrame)
         }
     );
     
@@ -96,7 +92,6 @@ void TAA::setupImageViews() {
         .setViewType(vk::ImageViewType::e2D);
 
     m_previousFrameView = r_engine->m_device.createImageView(createInfo.setImage(m_previousFrame));
-    m_currentFrameView = r_engine->m_device.createImageView(createInfo.setImage(m_currentFrame));
     m_taaTargetView = r_engine->m_device.createImageView(createInfo.setImage(m_taaTarget));
 }
 
@@ -207,7 +202,7 @@ void TAA::setupDescriptorSets() {
             .setDstSet(m_aaDescriptorSet)
             .setDstBinding(1)
             .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
-                .setImageView(m_currentFrameView)
+                .setImageView(r_engine->m_emissiveImageView)
                 .setSampler(m_currentFrameSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
@@ -286,7 +281,7 @@ void TAA::setupRenderPasses() {
         std::vector<vk::AttachmentDescription> attachmentDescriptions {
             vk::AttachmentDescription {}
                 .setInitialLayout(vk::ImageLayout::eUndefined)
-                .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
+                .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setFormat(r_engine->m_emissiveFormat)
                 .setLoadOp(vk::AttachmentLoadOp::eDontCare)
                 ,
@@ -444,41 +439,6 @@ void TAA::setupPipelines() {
 }
 
 void TAA::draw(vk::CommandBuffer cmd) {
-    auto blitInfo = vk::ImageBlit {}
-        .setSrcOffsets({
-            vk::Offset3D { 0, 0, 0 },
-            vk::Offset3D {
-                static_cast<int32_t>(r_engine->m_swapchainExtent.width),
-                static_cast<int32_t>(r_engine->m_swapchainExtent.height),
-                1
-            },
-        })
-        .setDstOffsets({
-            vk::Offset3D { 0, 0, 0 },
-            vk::Offset3D {
-                static_cast<int32_t>(r_engine->m_swapchainExtent.width),
-                static_cast<int32_t>(r_engine->m_swapchainExtent.height),
-                1
-            },
-        })
-        .setSrcSubresource(vk::ImageSubresourceLayers {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseArrayLayer(0)
-            .setLayerCount(1)
-            .setMipLevel(0))
-        .setDstSubresource(vk::ImageSubresourceLayers {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseArrayLayer(0)
-            .setLayerCount(1)
-            .setMipLevel(0))
-        ;
-    
-    cmd.blitImage(
-        r_engine->m_emissiveImage, vk::ImageLayout::eTransferSrcOptimal,
-        m_currentFrame, vk::ImageLayout::eTransferDstOptimal,
-        blitInfo, vk::Filter::eLinear
-    );
-
     auto barrier = vk::ImageMemoryBarrier {}
         .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
@@ -495,8 +455,7 @@ void TAA::draw(vk::CommandBuffer cmd) {
         vk::PipelineStageFlagBits::eTransfer,
         vk::PipelineStageFlagBits::eFragmentShader,
         {}, {}, {}, {
-            barrier.setImage(m_currentFrame),
-            barrier.setImage(m_previousFrame),
+            vk::ImageMemoryBarrier { barrier }.setImage(m_previousFrame),
         }
     );
 
@@ -528,14 +487,14 @@ void TAA::draw(vk::CommandBuffer cmd) {
         vk::PipelineStageFlagBits::eFragmentShader,
         vk::PipelineStageFlagBits::eTransfer,
         {}, {}, {}, {
-            barrier.setImage(m_previousFrame)
+            vk::ImageMemoryBarrier { barrier }
+                .setImage(m_previousFrame)
                 .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
                 .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
                 .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
                 ,
-            barrier.setImage(m_currentFrame)
-                ,
-            barrier.setImage(m_taaTarget)
+            vk::ImageMemoryBarrier { barrier }
+                .setImage(m_taaTarget)
                 .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
                 .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
                 .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
@@ -543,11 +502,19 @@ void TAA::draw(vk::CommandBuffer cmd) {
         }
     );
 
-    cmd.blitImage(
+    auto subresource = vk::ImageSubresourceLayers {}
+        .setAspectMask(vk::ImageAspectFlagBits::eColor)
+        .setBaseArrayLayer(0)
+        .setLayerCount(1)
+        .setMipLevel(0);
+
+    cmd.copyImage(
         m_taaTarget, vk::ImageLayout::eTransferSrcOptimal,
         m_previousFrame, vk::ImageLayout::eTransferDstOptimal,
-        blitInfo,
-        vk::Filter::eLinear
+        vk::ImageCopy {}
+            .setExtent(vk::Extent3D { r_engine->m_swapchainExtent, 1 })
+            .setSrcSubresource(subresource)
+            .setDstSubresource(subresource)
     );
 }
 
