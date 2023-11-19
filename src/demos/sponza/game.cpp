@@ -409,8 +409,8 @@ class Game : public mge::Engine {
     }
 
     void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
-        m_taa.draw(cmd);
         m_hdrColourCorrection.draw(cmd);
+        m_taa.draw(cmd);
     }
 
     void rebuildSwapchain() override {
