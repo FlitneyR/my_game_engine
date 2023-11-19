@@ -50,15 +50,12 @@ public:
 
     void cleanup() {
         r_engine->m_device.destroyImage(m_previousFrame);
-        // r_engine->m_device.destroyImage(m_currentFrame);
         r_engine->m_device.destroyImage(m_taaTarget);
 
         r_engine->m_device.destroyImageView(m_previousFrameView);
-        // r_engine->m_device.destroyImageView(m_currentFrameView);
         r_engine->m_device.destroyImageView(m_taaTargetView);
 
         r_engine->m_device.freeMemory(m_previousFrameMemory);
-        // r_engine->m_device.freeMemory(m_currentFrameMemory);
         r_engine->m_device.freeMemory(m_taaTargetMemory);
 
         r_engine->m_device.destroyFramebuffer(m_taaFramebuffer);
