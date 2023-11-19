@@ -25,6 +25,7 @@ COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/fullscreen.vert.spv \
 				   build/hdrColourCorrection.frag.spv \
 				   build/taa.frag.spv \
+				   build/sharpen.frag.spv \
 
 # bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
 main: bin/main shaders

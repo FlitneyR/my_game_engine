@@ -74,6 +74,8 @@ struct Camera : public Uniform<CameraUniformData> {
             { 0.937500, 0.259259 },
             { 0.031250, 0.592593 },
         };
+        
+        glm::vec2 offset = offsets[r_engine->m_framecount % offsets.size()];
 
         glm::vec2 texel {
             r_engine->m_swapchainExtent.width,
@@ -82,7 +84,7 @@ struct Camera : public Uniform<CameraUniformData> {
 
         texel = 1.f / texel;
 
-        return { offsets[r_engine->m_framecount % offsets.size()] * texel, 0.f };
+        return { offset * texel, 0.f };
     }
 
     void updateUniformData(CameraUniformData& uniform) override {

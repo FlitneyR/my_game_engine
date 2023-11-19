@@ -26,6 +26,7 @@ class Game : public mge::Engine {
     >   Model;
 
     std::unique_ptr<Model::Material> m_modelMaterial;
+    std::unique_ptr<Model::Material> m_alphaClippedModelMaterial;
 
     std::vector<std::unique_ptr<Model>> m_models;
     std::vector<std::unique_ptr<Model::Mesh>> m_meshes;
@@ -86,11 +87,24 @@ class Game : public mge::Engine {
             loadShaderModule("build/mvp.vert.spv"),
             loadShaderModule("build/pbr.frag.spv"));
 
+        m_alphaClippedModelMaterial = std::make_unique<Model::Material>(*this,
+            loadShaderModule("build/mvp.vert.spv"),
+            loadShaderModule("build/pbr.frag.spv"));
+        m_alphaClippedModelMaterial->m_usesAlphaClipping = true;
+
         m_models.reserve(m_modelNames.size());
 
         for (const auto& modelName : m_modelNames) {
             auto mesh = std::make_unique<Model::Mesh>(mge::loadObjMesh(*this, ("assets/sponza/" + modelName + ".obj").c_str()));
-            auto materialInstance = std::make_unique<Model::Material::Instance>(m_modelMaterial->makeInstance());
+            Model::Material* material;
+
+            if (modelName == "Chains" || modelName == "Ivy" || modelName == "Plants") {
+                material = m_alphaClippedModelMaterial.get();
+            } else {
+                material = m_modelMaterial.get();
+            }
+
+            auto materialInstance = std::make_unique<Model::Material::Instance>(material->makeInstance());
 
             mge::Texture
                 albedoTexture(("assets/sponza/" + modelName + "Albedo.png").c_str()),
@@ -103,7 +117,7 @@ class Game : public mge::Engine {
 
             m_materialInstances.push_back(std::move(materialInstance));
 
-            m_models.push_back(std::make_unique<Model>(*this, *m_meshes.back(), *m_modelMaterial, *m_materialInstances.back()));
+            m_models.push_back(std::make_unique<Model>(*this, *m_meshes.back(), *material, *m_materialInstances.back()));
 
             m_modelSystem.addModel(modelName, m_models.back().get());
             
@@ -144,7 +158,7 @@ class Game : public mge::Engine {
             m_lightSystem.addComponent(entity);
             auto ambientLight = m_lightSystem.getInstance(entity);
             ambientLight->m_type = ambientLight->e_ambient;
-            ambientLight->m_colour = glm::vec3 { 0.05f };
+            ambientLight->m_colour = glm::vec3 { 0.07f };
         }
 
         {   // sun light
@@ -180,7 +194,7 @@ class Game : public mge::Engine {
             );
 
             spotLight->m_type = mge::LightInstance::e_spot;
-            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 100.f;
+            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
             spotLight->m_angle = glm::radians(45.f);
             spotLight->m_near = 0.01f;
             spotLight->m_far = 500.f;
@@ -221,6 +235,7 @@ class Game : public mge::Engine {
         m_light->setup();
 
         m_modelMaterial->setup();
+        m_alphaClippedModelMaterial->setup();
 
         m_hdrColourCorrection.setup();
         m_taa.setup();
@@ -329,6 +344,10 @@ class Game : public mge::Engine {
         m_camera->m_position = cameraTransform->getPosition();
         m_camera->m_forward = cameraTransform->getForward();
         m_camera->m_up = cameraTransform->getUp();
+
+        // auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
+        // spotLightTransform->setPosition(cameraTransform->getPosition() + cameraTransform->getForward() * 0.25f);
+        // spotLightTransform->setRotation(cameraTransform->getRotation());
     }
 
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
@@ -343,8 +362,18 @@ class Game : public mge::Engine {
         m_modelMaterial->bindShadowMapPipeline(cmd);
         m_modelMaterial->bindUniform(cmd, shadowMapView);
 
-        for (int i = 0; i < m_models.size(); i++) {
+        for (int i = 0; i < m_models.size(); i++)
+        if (m_models[i]->m_material == m_modelMaterial.get()) {
             m_modelMaterial->bindInstance(cmd, *m_materialInstances[i]);
+            m_models[i]->drawInstances(cmd);
+        }
+
+        m_alphaClippedModelMaterial->bindShadowMapPipeline(cmd);
+        m_alphaClippedModelMaterial->bindUniform(cmd, shadowMapView);
+
+        for (int i = 0; i < m_models.size(); i++)
+        if (m_models[i]->m_material == m_alphaClippedModelMaterial.get()) {
+            m_alphaClippedModelMaterial->bindInstance(cmd, *m_materialInstances[i]);
             m_models[i]->drawInstances(cmd);
         }
     }
@@ -353,8 +382,18 @@ class Game : public mge::Engine {
         m_modelMaterial->bindPipeline(cmd);
         m_modelMaterial->bindUniform(cmd, *m_camera);
 
-        for (int i = 0; i < m_models.size(); i++) {
+        for (int i = 0; i < m_models.size(); i++)
+        if (m_models[i]->m_material == m_modelMaterial.get()) {
             m_modelMaterial->bindInstance(cmd, *m_materialInstances[i]);
+            m_models[i]->drawInstances(cmd);
+        }
+
+        m_alphaClippedModelMaterial->bindPipeline(cmd);
+        m_alphaClippedModelMaterial->bindUniform(cmd, *m_camera);
+
+        for (int i = 0; i < m_models.size(); i++)
+        if (m_models[i]->m_material == m_alphaClippedModelMaterial.get()) {
+            m_alphaClippedModelMaterial->bindInstance(cmd, *m_materialInstances[i]);
             m_models[i]->drawInstances(cmd);
         }
     }
@@ -390,7 +429,9 @@ class Game : public mge::Engine {
         for (auto& mesh : m_meshes) mesh->cleanup();
         for (auto& model : m_models) model->cleanup();
         for (auto& materialInstance : m_materialInstances) materialInstance->cleanup();
+        
         m_modelMaterial->cleanup();
+        m_alphaClippedModelMaterial->cleanup();
 
         m_lightMesh->cleanup();
 

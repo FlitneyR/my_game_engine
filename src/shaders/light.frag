@@ -46,19 +46,25 @@ void main() {
     float roughness = arm.g;
     float metallness = arm.b;
 
-    if (v_type == AMBIENT) {
-        f_emissive = vec4(v_colour * albedo * ao, 1.0);
-        return;
-    }
-
-    mat4 inversePerspective = inverse(camera.perspective);
     mat4 inverseView = inverse(camera.view);
+    mat4 inversePerspective = inverse(camera.perspective);
 
     vec4 viewSpace = vec4(v_screenCoord, depth, 1);
+
     vec4 worldPos = inverseView * inversePerspective * viewSpace;
     worldPos /= worldPos.w;
-
     vec4 camPos = inverseView * vec4(0, 0, 0, 1);
+
+    vec3 viewdir = normalize(vec3(worldPos - camPos));
+
+    if (v_type == AMBIENT) {
+        vec3 diffuse = v_colour * albedo * ao;
+        vec3 specular = mix(v_colour, albedo * v_colour, metallness) * (1 - roughness);
+        float factor = pow(1 - abs(dot(normal, viewdir)), 5.0) * (1 - roughness);
+
+        f_emissive = vec4(mix(diffuse, specular, factor), 1.0);
+        return;
+    }
 
     vec3 lightPositionDelta = v_position - worldPos.xyz;
     vec3 lightDirection;
@@ -85,7 +91,6 @@ void main() {
 
     vec3 F0 = mix(vec3(0.04), albedo, metallness);
 
-    vec3 viewdir = normalize(vec3(worldPos - camPos));
     vec3 halfway = normalize(viewdir + lightDirection);
 
     float NDF = DistributionGGX(normal, halfway, roughness);

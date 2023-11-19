@@ -17,6 +17,12 @@ void TAA::setupImages() {
 
     m_previousFrame = r_engine->m_device.createImage(createInfo);
     m_currentFrame = r_engine->m_device.createImage(createInfo);
+
+    m_taaTarget = r_engine->m_device.createImage(createInfo
+        .setUsage(vk::ImageUsageFlagBits::eColorAttachment
+                | vk::ImageUsageFlagBits::eTransferSrc
+                | vk::ImageUsageFlagBits::eSampled)
+        );
 }
 
 void TAA::allocateImages() {
@@ -31,9 +37,11 @@ void TAA::allocateImages() {
 
     m_previousFrameMemory = r_engine->m_device.allocateMemory(allocInfo);
     m_currentFrameMemory = r_engine->m_device.allocateMemory(allocInfo);
+    m_taaTargetMemory = r_engine->m_device.allocateMemory(allocInfo);
     
     r_engine->m_device.bindImageMemory(m_previousFrame, m_previousFrameMemory, {});
     r_engine->m_device.bindImageMemory(m_currentFrame, m_currentFrameMemory, {});
+    r_engine->m_device.bindImageMemory(m_taaTarget, m_taaTargetMemory, {});
 }
 
 void TAA::transitionImageLayouts() {
@@ -89,29 +97,30 @@ void TAA::setupImageViews() {
 
     m_previousFrameView = r_engine->m_device.createImageView(createInfo.setImage(m_previousFrame));
     m_currentFrameView = r_engine->m_device.createImageView(createInfo.setImage(m_currentFrame));
+    m_taaTargetView = r_engine->m_device.createImageView(createInfo.setImage(m_taaTarget));
 }
 
 void TAA::setupDescriptorSetLayout() {
-    std::vector<vk::DescriptorSetLayoutBinding> bindings {
-        vk::DescriptorSetLayoutBinding {}
+    std::vector<vk::DescriptorSetLayoutBinding> aaBindings {
+        vk::DescriptorSetLayoutBinding {} // previous frame
             .setBinding(0)
             .setDescriptorCount(1)
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
             .setStageFlags(vk::ShaderStageFlagBits::eFragment)
             ,
-        vk::DescriptorSetLayoutBinding {}
+        vk::DescriptorSetLayoutBinding {} // current frame
             .setBinding(1)
             .setDescriptorCount(1)
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
             .setStageFlags(vk::ShaderStageFlagBits::eFragment)
             ,
-        vk::DescriptorSetLayoutBinding {}
+        vk::DescriptorSetLayoutBinding {} // velocity
             .setBinding(2)
             .setDescriptorCount(1)
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
             .setStageFlags(vk::ShaderStageFlagBits::eFragment)
             ,
-        vk::DescriptorSetLayoutBinding {}
+        vk::DescriptorSetLayoutBinding {} // depth
             .setBinding(3)
             .setDescriptorCount(1)
             .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
@@ -119,21 +128,34 @@ void TAA::setupDescriptorSetLayout() {
             ,
     };
 
-    m_descriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo {}
-        .setBindings(bindings)
+    m_taaDescriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo {}
+        .setBindings(aaBindings)
+        );
+    
+    std::vector<vk::DescriptorSetLayoutBinding> sharpenBindings {
+        vk::DescriptorSetLayoutBinding {} // taa output
+            .setBinding(0)
+            .setDescriptorCount(1)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+            .setStageFlags(vk::ShaderStageFlagBits::eFragment)
+            ,
+    };
+
+    m_sharpenDescriptorSetLayout = r_engine->m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo {}
+        .setBindings(sharpenBindings)
         );
 }
 
 void TAA::setupDescriptorPool() {
     std::vector<vk::DescriptorPoolSize> poolsizes {
         vk::DescriptorPoolSize {}
-            .setDescriptorCount(4)
+            .setDescriptorCount(5)
             .setType(vk::DescriptorType::eCombinedImageSampler)
             ,
     };
 
     m_descriptorPool = r_engine->m_device.createDescriptorPool(vk::DescriptorPoolCreateInfo {}
-        .setMaxSets(1)
+        .setMaxSets(2)
         .setPoolSizes(poolsizes)
         );
 }
@@ -150,117 +172,186 @@ void TAA::setupSamplers() {
     m_currentFrameSampler = r_engine->m_device.createSampler(createInfo);
     m_velocitySampler = r_engine->m_device.createSampler(createInfo);
     m_depthSampler = r_engine->m_device.createSampler(createInfo);
+    m_taaOutputSampler = r_engine->m_device.createSampler(createInfo);
 }
 
-void TAA::setupDescriptorSet() {
-    m_descriptorSet = r_engine->m_device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {}
+void TAA::setupDescriptorSets() {
+    std::vector<vk::DescriptorSetLayout> layouts {
+        m_taaDescriptorSetLayout, m_sharpenDescriptorSetLayout
+    };
+
+    auto descriptorSets = r_engine->m_device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo {}
         .setDescriptorPool(m_descriptorPool)
-        .setDescriptorSetCount(1)
-        .setSetLayouts(m_descriptorSetLayout)
-        )[0];
+        .setSetLayouts(layouts)
+        );
+    
+    m_aaDescriptorSet = descriptorSets[0];
+    m_sharpenDescriptorSet = descriptorSets[1];
     
     auto descriptorWrite = vk::WriteDescriptorSet {}
         .setDescriptorCount(1)
         .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-        .setDstSet(m_descriptorSet)
         .setImageInfo(vk::DescriptorImageInfo {}
             .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal))
         ;
     
     r_engine->m_device.updateDescriptorSets(std::vector<vk::WriteDescriptorSet> {
         vk::WriteDescriptorSet { descriptorWrite }
+            .setDstSet(m_aaDescriptorSet)
             .setDstBinding(0)
             .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(m_previousFrameView)
                 .setSampler(m_previousFrameSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
+            .setDstSet(m_aaDescriptorSet)
             .setDstBinding(1)
             .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(m_currentFrameView)
                 .setSampler(m_currentFrameSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
+            .setDstSet(m_aaDescriptorSet)
             .setDstBinding(2)
             .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(r_engine->m_velocityImageView)
                 .setSampler(m_velocitySampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
+            .setDstSet(m_aaDescriptorSet)
             .setDstBinding(3)
             .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
                 .setImageView(r_engine->m_depthImageView)
                 .setSampler(m_depthSampler))
             ,
+        vk::WriteDescriptorSet { descriptorWrite }
+            .setDstSet(m_sharpenDescriptorSet)
+            .setDstBinding(0)
+            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+                .setImageView(m_taaTargetView)
+                .setSampler(m_taaOutputSampler))
+            ,
         }, {});
 }
 
-void TAA::setupRenderPass() {
-    std::vector<vk::AttachmentDescription> attachmentDescriptions {
-        vk::AttachmentDescription {}
-            .setInitialLayout(vk::ImageLayout::eUndefined)
-            .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
-            .setFormat(r_engine->m_emissiveFormat)
-            .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-    };
-
-    auto emissiveAttachment = vk::AttachmentReference {}
+void TAA::setupRenderPasses() {
+    auto outputAttachment = vk::AttachmentReference {}
         .setAttachment(0)
         .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
         ;
 
     std::vector<vk::SubpassDescription> subpasses {
         vk::SubpassDescription {}
-            .setColorAttachments(emissiveAttachment)
-    };
-
-    std::vector<vk::SubpassDependency> dependencies {
-        vk::SubpassDependency {}
-            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
-            .setDstSubpass(0)
-            .setSrcStageMask(vk::PipelineStageFlagBits::eTransfer)
-            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-            ,
-        vk::SubpassDependency {}
-            .setSrcSubpass(VK_SUBPASS_EXTERNAL)
-            .setDstSubpass(0)
-            .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-            .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setColorAttachments(outputAttachment)
             ,
     };
 
-    m_renderPass = r_engine->m_device.createRenderPass(vk::RenderPassCreateInfo {}
-        .setAttachments(attachmentDescriptions)
-        .setDependencies(dependencies)
-        .setSubpasses(subpasses)
+    {   // taa render pass
+        std::vector<vk::AttachmentDescription> attachmentDescriptions {
+            vk::AttachmentDescription {}
+                .setInitialLayout(vk::ImageLayout::eUndefined)
+                .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+                .setFormat(r_engine->m_emissiveFormat)
+                .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+                ,
+        };
+
+        std::vector<vk::SubpassDependency> dependencies {
+            vk::SubpassDependency {}
+                .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+                .setDstSubpass(0)
+                .setSrcStageMask(vk::PipelineStageFlagBits::eTransfer)
+                .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+                .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+                .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+                ,
+            vk::SubpassDependency {}
+                .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+                .setDstSubpass(0)
+                .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+                .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+                .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+                .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+                ,
+        };
+
+        m_taaRenderPass = r_engine->m_device.createRenderPass(vk::RenderPassCreateInfo {}
+            .setAttachments(attachmentDescriptions)
+            .setDependencies(dependencies)
+            .setSubpasses(subpasses)
+            );
+    }
+
+    {   // sharpening render pass
+        std::vector<vk::AttachmentDescription> attachmentDescriptions {
+            vk::AttachmentDescription {}
+                .setInitialLayout(vk::ImageLayout::eUndefined)
+                .setFinalLayout(vk::ImageLayout::eTransferSrcOptimal)
+                .setFormat(r_engine->m_emissiveFormat)
+                .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+                ,
+        };
+
+        std::vector<vk::SubpassDependency> dependencies {
+            vk::SubpassDependency {}
+                .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+                .setDstSubpass(0)
+                .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+                .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+                .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+                .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+                ,
+        };
+
+        m_sharpenRenderPass = r_engine->m_device.createRenderPass(vk::RenderPassCreateInfo {}
+            .setAttachments(attachmentDescriptions)
+            .setDependencies(dependencies)
+            .setSubpasses(subpasses)
+            );
+    }
+}
+
+void TAA::setupFramebuffers() {
+    {   // taa framebuffer
+        std::vector<vk::ImageView> attachments {
+            m_taaTargetView,
+        };
+
+        m_taaFramebuffer = r_engine->m_device.createFramebuffer(vk::FramebufferCreateInfo {}
+            .setRenderPass(m_taaRenderPass)
+            .setAttachments(attachments)
+            .setWidth(r_engine->m_swapchainExtent.width)
+            .setHeight(r_engine->m_swapchainExtent.height)
+            .setLayers(1)
+            );
+    }
+
+    {   // sharpen framebuffer
+        std::vector<vk::ImageView> attachments {
+            r_engine->m_emissiveImageView,
+        };
+
+        m_sharpenFramebuffer = r_engine->m_device.createFramebuffer(vk::FramebufferCreateInfo {}
+            .setRenderPass(m_sharpenRenderPass)
+            .setAttachments(attachments)
+            .setWidth(r_engine->m_swapchainExtent.width)
+            .setHeight(r_engine->m_swapchainExtent.height)
+            .setLayers(1)
+            );
+    }
+}
+
+void TAA::setupPipelineLayouts() {
+    m_taaPipelineLayout = r_engine->m_device.createPipelineLayout(vk::PipelineLayoutCreateInfo {}
+        .setSetLayouts(m_taaDescriptorSetLayout)
+        );
+    
+    m_sharpenPipelineLayout = r_engine->m_device.createPipelineLayout(vk::PipelineLayoutCreateInfo {}
+        .setSetLayouts(m_sharpenDescriptorSetLayout)
         );
 }
 
-void TAA::setupFramebuffer() {
-    std::vector<vk::ImageView> attachments {
-        r_engine->m_emissiveImageView,
-    };
-
-    m_framebuffer = r_engine->m_device.createFramebuffer(vk::FramebufferCreateInfo {}
-        .setRenderPass(m_renderPass)
-        .setAttachments(attachments)
-        .setWidth(r_engine->m_swapchainExtent.width)
-        .setHeight(r_engine->m_swapchainExtent.height)
-        .setLayers(1)
-        );
-}
-
-void TAA::setupPipelineLayout() {
-    m_pipelineLayout = r_engine->m_device.createPipelineLayout(vk::PipelineLayoutCreateInfo {}
-        .setSetLayouts(m_descriptorSetLayout)
-        );
-}
-
-void TAA::setupPipeline() {
+void TAA::setupPipelines() {
     std::vector<vk::DynamicState> dynamicStates {
         vk::DynamicState::eViewport,
         vk::DynamicState::eScissor,
@@ -305,28 +396,51 @@ void TAA::setupPipeline() {
             .setStage(vk::ShaderStageFlagBits::eVertex)
             ,
         vk::PipelineShaderStageCreateInfo {}
-            .setModule(m_fragmentShader = r_engine->loadShaderModule("build/taa.frag.spv"))
+            .setModule(m_taaFragmentShader = r_engine->loadShaderModule("build/taa.frag.spv"))
             .setPName("main")
             .setStage(vk::ShaderStageFlagBits::eFragment)
             ,
     };
 
-    auto pipeline = r_engine->m_device.createGraphicsPipeline(nullptr, vk::GraphicsPipelineCreateInfo {}
-        .setLayout(m_pipelineLayout)
-        .setPDynamicState(&dynamicState)
-        .setPVertexInputState(&vertexInputState)
-        .setPInputAssemblyState(&inputAssemblyState)
-        .setPViewportState(&viewportState)
-        .setPRasterizationState(&rasterizationState)
-        .setPDepthStencilState(&depthStencilState)
-        .setPMultisampleState(&multisampleState)
-        .setPColorBlendState(&colourBlendState)
-        .setRenderPass(m_renderPass)
-        .setStages(stages)
-        );
-    
-    vk::resultCheck(pipeline.result, "Failed to create pipeline");
-    m_pipeline = pipeline.value;
+    {   // taa pipeline
+        auto pipeline = r_engine->m_device.createGraphicsPipeline(nullptr, vk::GraphicsPipelineCreateInfo {}
+            .setLayout(m_taaPipelineLayout)
+            .setPDynamicState(&dynamicState)
+            .setPVertexInputState(&vertexInputState)
+            .setPInputAssemblyState(&inputAssemblyState)
+            .setPViewportState(&viewportState)
+            .setPRasterizationState(&rasterizationState)
+            .setPDepthStencilState(&depthStencilState)
+            .setPMultisampleState(&multisampleState)
+            .setPColorBlendState(&colourBlendState)
+            .setRenderPass(m_taaRenderPass)
+            .setStages(stages)
+            );
+        
+        vk::resultCheck(pipeline.result, "Failed to create pipeline");
+        m_aaPipeline = pipeline.value;
+    }
+
+    {   // sharpen pipeline
+        stages[1].setModule(m_sharpenFragmentShader = r_engine->loadShaderModule("build/sharpen.frag.spv"));
+
+        auto pipeline = r_engine->m_device.createGraphicsPipeline(nullptr, vk::GraphicsPipelineCreateInfo {}
+            .setLayout(m_sharpenPipelineLayout)
+            .setPDynamicState(&dynamicState)
+            .setPVertexInputState(&vertexInputState)
+            .setPInputAssemblyState(&inputAssemblyState)
+            .setPViewportState(&viewportState)
+            .setPRasterizationState(&rasterizationState)
+            .setPDepthStencilState(&depthStencilState)
+            .setPMultisampleState(&multisampleState)
+            .setPColorBlendState(&colourBlendState)
+            .setRenderPass(m_sharpenRenderPass)
+            .setStages(stages)
+            );
+        
+        vk::resultCheck(pipeline.result, "Failed to create pipeline");
+        m_sharpenPipeline = pipeline.value;
+    }
 }
 
 void TAA::draw(vk::CommandBuffer cmd) {
@@ -387,13 +501,25 @@ void TAA::draw(vk::CommandBuffer cmd) {
     );
 
     cmd.beginRenderPass(vk::RenderPassBeginInfo {}
-        .setFramebuffer(m_framebuffer)
-        .setRenderPass(m_renderPass)
+        .setFramebuffer(m_taaFramebuffer)
+        .setRenderPass(m_taaRenderPass)
         .setRenderArea({ {}, r_engine->m_swapchainExtent })
         , vk::SubpassContents::eInline);
     
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, m_descriptorSet, {});
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_aaPipeline);
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_taaPipelineLayout, 0, m_aaDescriptorSet, {});
+    cmd.draw(3, 1, 0, 0);
+    
+    cmd.endRenderPass();
+
+    cmd.beginRenderPass(vk::RenderPassBeginInfo {}
+        .setFramebuffer(m_sharpenFramebuffer)
+        .setRenderPass(m_sharpenRenderPass)
+        .setRenderArea({ {}, r_engine->m_swapchainExtent })
+        , vk::SubpassContents::eInline);
+
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_sharpenPipeline);
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_sharpenPipelineLayout, 0, m_sharpenDescriptorSet, {});
     cmd.draw(3, 1, 0, 0);
     
     cmd.endRenderPass();
@@ -408,11 +534,17 @@ void TAA::draw(vk::CommandBuffer cmd) {
                 .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
                 ,
             barrier.setImage(m_currentFrame)
+                ,
+            barrier.setImage(m_taaTarget)
+                .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
+                .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
+                .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
+                ,
         }
     );
 
     cmd.blitImage(
-        r_engine->m_emissiveImage, vk::ImageLayout::eTransferSrcOptimal,
+        m_taaTarget, vk::ImageLayout::eTransferSrcOptimal,
         m_previousFrame, vk::ImageLayout::eTransferDstOptimal,
         blitInfo,
         vk::Filter::eLinear

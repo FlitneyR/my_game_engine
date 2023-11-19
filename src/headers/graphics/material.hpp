@@ -26,6 +26,8 @@ protected:
 public:
     typedef MaterialInstance Instance;
 
+    bool m_usesAlphaClipping = false;
+
     Material(Engine& engine, vk::ShaderModule vertexShader, vk::ShaderModule fragmentShader) :
         r_engine(engine),
         m_vertexShader(vertexShader),
@@ -245,9 +247,7 @@ void MATERIAL::createPipeline() {
     m_pipeline = pipelineResultValue.value[0];
 
     if (shouldCreateShadowMappingPipeline()) {
-        colorBlendState
-            .setAttachments({})
-            ;
+        colorBlendState.setAttachments({});
 
         createInfo
             .setRenderPass(r_engine.m_shadowMappingRenderPass)
@@ -256,12 +256,12 @@ void MATERIAL::createPipeline() {
         
         rasterizationState
             .setDepthBiasEnable(true)
-            .setDepthBiasConstantFactor(50.f)
+            .setDepthBiasConstantFactor(5.f)
             .setCullMode(vk::CullModeFlagBits::eNone)
-            .setDepthBiasSlopeFactor(50.f)
+            .setDepthBiasSlopeFactor(5.f)
             ;
         
-        createInfo.setStages(stages[0]);
+        if (!m_usesAlphaClipping) createInfo.setStages(stages[0]);
 
         pipelineResultValue = r_engine.m_device.createGraphicsPipelines(VK_NULL_HANDLE, createInfo);
         vk::resultCheck(pipelineResultValue.result, "Failed to create shadow mapping pipeline");

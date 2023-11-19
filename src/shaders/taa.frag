@@ -20,8 +20,8 @@ void main() {
     }
     
     vec2 closestUV = uv;
-    for (int i = -1; i <= 1; i++)
-    for (int j = -1; j <= 1; j++) {
+    for (int i = -2; i <= 2; i++)
+    for (int j = -2; j <= 2; j++) {
         vec2 deltaUV = vec2(i, j) * texel;
         float s_depth = texture(t_depth, uv + deltaUV).r;
         if (s_depth < depth) {
@@ -56,5 +56,5 @@ void main() {
     // clamp previous frame colour within aabb
     previousFrameColour = clamp(previousFrameColour, aabb[0], aabb[1]);
 
-    f_colour = vec4(mix(previousFrameColour, currentFrameColour, 0.1), 1.0);
+    f_colour = vec4(mix(previousFrameColour, currentFrameColour, 0.05), 1.0);
 }

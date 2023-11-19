@@ -8,21 +8,21 @@ namespace mge {
 class TAA {
     Engine* r_engine;
 
-    vk::Image m_currentFrame, m_previousFrame;
-    vk::ImageView m_currentFrameView, m_previousFrameView;
-    vk::DeviceMemory m_currentFrameMemory, m_previousFrameMemory;
+    vk::Image m_currentFrame, m_previousFrame, m_taaTarget;
+    vk::ImageView m_currentFrameView, m_previousFrameView, m_taaTargetView;
+    vk::DeviceMemory m_currentFrameMemory, m_previousFrameMemory, m_taaTargetMemory;
 
-    vk::Framebuffer m_framebuffer;
-    vk::RenderPass m_renderPass;
+    vk::Framebuffer m_taaFramebuffer, m_sharpenFramebuffer;
+    vk::RenderPass m_taaRenderPass, m_sharpenRenderPass;
 
-    vk::Sampler m_previousFrameSampler, m_currentFrameSampler, m_velocitySampler, m_depthSampler;
-    vk::DescriptorSet m_descriptorSet;
+    vk::Sampler m_previousFrameSampler, m_currentFrameSampler, m_velocitySampler, m_depthSampler, m_taaOutputSampler;
+    vk::DescriptorSet m_aaDescriptorSet, m_sharpenDescriptorSet;
     vk::DescriptorPool m_descriptorPool;
-    vk::DescriptorSetLayout m_descriptorSetLayout;
+    vk::DescriptorSetLayout m_taaDescriptorSetLayout, m_sharpenDescriptorSetLayout;
 
-    vk::ShaderModule m_vertexShader, m_fragmentShader;
-    vk::PipelineLayout m_pipelineLayout;
-    vk::Pipeline m_pipeline;
+    vk::ShaderModule m_vertexShader, m_taaFragmentShader, m_sharpenFragmentShader;
+    vk::PipelineLayout m_taaPipelineLayout, m_sharpenPipelineLayout;
+    vk::Pipeline m_aaPipeline, m_sharpenPipeline;
 
 public:
     TAA() = default;
@@ -37,13 +37,13 @@ public:
         setupDescriptorSetLayout();
         setupDescriptorPool();
         setupSamplers();
-        setupDescriptorSet();
+        setupDescriptorSets();
 
-        setupRenderPass();
-        setupFramebuffer();
+        setupRenderPasses();
+        setupFramebuffers();
 
-        setupPipelineLayout();
-        setupPipeline();
+        setupPipelineLayouts();
+        setupPipelines();
     }
 
     void draw(vk::CommandBuffer cmd);
@@ -51,28 +51,41 @@ public:
     void cleanup() {
         r_engine->m_device.destroyImage(m_previousFrame);
         r_engine->m_device.destroyImage(m_currentFrame);
+        r_engine->m_device.destroyImage(m_taaTarget);
 
         r_engine->m_device.destroyImageView(m_previousFrameView);
         r_engine->m_device.destroyImageView(m_currentFrameView);
+        r_engine->m_device.destroyImageView(m_taaTargetView);
 
         r_engine->m_device.freeMemory(m_previousFrameMemory);
         r_engine->m_device.freeMemory(m_currentFrameMemory);
+        r_engine->m_device.freeMemory(m_taaTargetMemory);
 
-        r_engine->m_device.destroyFramebuffer(m_framebuffer);
-        r_engine->m_device.destroyRenderPass(m_renderPass);
+        r_engine->m_device.destroyFramebuffer(m_taaFramebuffer);
+        r_engine->m_device.destroyFramebuffer(m_sharpenFramebuffer);
+        
+        r_engine->m_device.destroyRenderPass(m_taaRenderPass);
+        r_engine->m_device.destroyRenderPass(m_sharpenRenderPass);
 
         r_engine->m_device.destroySampler(m_previousFrameSampler);
         r_engine->m_device.destroySampler(m_currentFrameSampler);
         r_engine->m_device.destroySampler(m_velocitySampler);
         r_engine->m_device.destroySampler(m_depthSampler);
+        r_engine->m_device.destroySampler(m_taaOutputSampler);
 
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);
-        r_engine->m_device.destroyDescriptorSetLayout(m_descriptorSetLayout);
+        r_engine->m_device.destroyDescriptorSetLayout(m_taaDescriptorSetLayout);
+        r_engine->m_device.destroyDescriptorSetLayout(m_sharpenDescriptorSetLayout);
 
         r_engine->m_device.destroyShaderModule(m_vertexShader);
-        r_engine->m_device.destroyShaderModule(m_fragmentShader);
-        r_engine->m_device.destroyPipelineLayout(m_pipelineLayout);
-        r_engine->m_device.destroyPipeline(m_pipeline);
+        r_engine->m_device.destroyShaderModule(m_taaFragmentShader);
+        r_engine->m_device.destroyShaderModule(m_sharpenFragmentShader);
+
+        r_engine->m_device.destroyPipelineLayout(m_taaPipelineLayout);
+        r_engine->m_device.destroyPipelineLayout(m_sharpenPipelineLayout);
+
+        r_engine->m_device.destroyPipeline(m_aaPipeline);
+        r_engine->m_device.destroyPipeline(m_sharpenPipeline);
     }
 
     void setupImages();
@@ -83,13 +96,13 @@ public:
     void setupDescriptorSetLayout();
     void setupDescriptorPool();
     void setupSamplers();
-    void setupDescriptorSet();
+    void setupDescriptorSets();
 
-    void setupFramebuffer();
-    void setupRenderPass();
+    void setupFramebuffers();
+    void setupRenderPasses();
 
-    void setupPipelineLayout();
-    void setupPipeline();
+    void setupPipelineLayouts();
+    void setupPipelines();
 };
 
 }
