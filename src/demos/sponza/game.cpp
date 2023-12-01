@@ -6,6 +6,7 @@
 #include <objloader.hpp>
 #include <postProcessing.hpp>
 #include <taa.hpp>
+#include <bloom.hpp>
 
 #include <vector>
 #include <string>
@@ -73,6 +74,7 @@ class Game : public mge::Engine {
 
     mge::HDRColourCorrection m_hdrColourCorrection;
     mge::TAA m_taa;
+    mge::Bloom m_bloom;
     
     void start() override {
         m_ecsManager.r_engine = this;
@@ -82,6 +84,7 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection = mge::HDRColourCorrection(*this);
         m_taa = mge::TAA(*this);
+        m_bloom = mge::Bloom(*this);
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"),
@@ -194,7 +197,7 @@ class Game : public mge::Engine {
             );
 
             spotLight->m_type = mge::LightInstance::e_spot;
-            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 50.f;
+            spotLight->m_colour = glm::vec3 { 2.f, 1.f, 0.5f } * 75.f;
             spotLight->m_angle = glm::radians(45.f);
             spotLight->m_near = 0.01f;
             spotLight->m_far = 500.f;
@@ -213,7 +216,7 @@ class Game : public mge::Engine {
             pointLight->m_colour = colours[index++] * 10.f;
 
             m_transformSystem.getComponent(entity)
-                ->setPosition(glm::vec3 { 5.f * i, 0.5f, 0.5f });
+                ->setPosition(glm::vec3 { 5.f * i, 0.5f, 0.125f });
         }
 
         m_cameraEntity = m_ecsManager.makeEntity();
@@ -239,6 +242,7 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.setup();
         m_taa.setup();
+        m_bloom.setup();
     }
 
     void update(double deltaTime) override {
@@ -411,6 +415,7 @@ class Game : public mge::Engine {
     void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
         m_hdrColourCorrection.draw(cmd);
         m_taa.draw(cmd);
+        m_bloom.draw(cmd);
     }
 
     void rebuildSwapchain() override {
@@ -418,9 +423,11 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.cleanup();
         m_taa.cleanup();
+        m_bloom.cleanup();
 
         m_hdrColourCorrection.setup();
         m_taa.setup();
+        m_bloom.setup();
     }
 
     void end() override {
@@ -451,5 +458,6 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.cleanup();
         m_taa.cleanup();
+        m_bloom.cleanup();
     }
 };

@@ -58,6 +58,8 @@ void main() {
     vec3 viewdir = normalize(vec3(worldPos - camPos));
 
     if (v_type == AMBIENT) {
+        // if (normal == vec3(0)) discard;
+
         vec3 diffuse = v_colour * albedo * ao;
         vec3 specular = mix(v_colour, albedo * v_colour, metallness) * (1 - roughness);
         float factor = pow(1 - abs(dot(normal, viewdir)), 5.0) * (1 - roughness);

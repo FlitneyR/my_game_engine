@@ -739,7 +739,9 @@ void Engine::createGBuffer() {
         .setTiling(vk::ImageTiling::eOptimal)
         .setUsage(vk::ImageUsageFlagBits::eColorAttachment
                 | vk::ImageUsageFlagBits::eInputAttachment
-                | vk::ImageUsageFlagBits::eSampled)
+                | vk::ImageUsageFlagBits::eSampled
+                | vk::ImageUsageFlagBits::eTransferSrc
+                | vk::ImageUsageFlagBits::eTransferDst)
         ;
 
     m_albedoImage = m_device.createImage(imageCreateInfo.setFormat(m_albedoFormat));
@@ -944,7 +946,7 @@ void Engine::draw() {
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // final colour
         vk::ClearValue {}.setDepthStencil({ 1.0f, 0 }),        // depth
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // albedo
-        vk::ClearValue {}.setColor({ 0.f, 0.f, 1.f, 1.f }),    // normal
+        vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // normal
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // arm 
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // emissive
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // velocity
@@ -1064,6 +1066,11 @@ void Engine::draw() {
     if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
         rebuildSwapchain();
     } else vk::resultCheck(presentResult, "Failed to present render result");
+
+    // this is not ideal, but there is a bug where the camera projection uniform buffer gets out of sync
+    // between the geometry pass and the lighting pass when the frame rate is too low
+    // this line avoids that
+    m_device.waitIdle();
 
     m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
     m_framecount++;

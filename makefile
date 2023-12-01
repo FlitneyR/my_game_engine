@@ -12,6 +12,7 @@ MAIN_DEPENDENCIES = build/engine.o \
 					build/light.o \
 					build/postProcessing.o \
 					build/taa.o \
+					build/bloom.o \
 
 COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/pbr.frag.spv \
@@ -26,6 +27,7 @@ COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/hdrColourCorrection.frag.spv \
 				   build/taa.frag.spv \
 				   build/sharpen.frag.spv \
+				   build/bloom.frag.spv \
 
 # bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
 main: bin/main shaders

@@ -18,7 +18,7 @@ void main() {
     if (offset != vec2(0, 0))
         sharpened -= texture(t_source, uv + offset * texelSize).rgb;
     
-    sharpened = clamp(sharpened, originalColour * 0.5, originalColour * 1.5);
+    sharpened = clamp(sharpened, originalColour * 0.75, originalColour * 1.25);
     
-    f_output = vec4(mix(originalColour, sharpened, 0.5), 1.0);
+    f_output = vec4(mix(originalColour, sharpened, 0.8), 1.0);
 }
