@@ -8,7 +8,7 @@ This is my attempt at a simple Vulkan-based game engine.
 
 ## Screenshots
 
-![Shadow Mapping in Sponza Scene](screenshots/SponzaShadowMapping.png)
+![Shadow Mapping in Sponza Scene](screenshots/Sponza.png)
 
 ## Goal
 
