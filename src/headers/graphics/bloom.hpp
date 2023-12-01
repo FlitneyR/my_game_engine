@@ -63,9 +63,9 @@ public:
     int m_minMipLevel = 1;
     int m_maxMipLevel = 10;
 
-    float m_threshold = 1.0;
-    float m_combineFactor = 1.0;
-    float m_overlayFactor = 0.5;
+    float m_threshold = 0.66;
+    float m_combineFactor = 0.99;
+    float m_overlayFactor = 0.33;
 
     int minMipLevel() { return m_minMipLevel; }
     int maxMipLevel() { return std::min(m_mipLevels, m_maxMipLevel); }
