@@ -7,6 +7,7 @@
 #include <modelInstance.hpp>
 #include <postProcessing.hpp>
 #include <taa.hpp>
+#include <bloom.hpp>
 
 #include "logic.hpp"
 
@@ -65,6 +66,7 @@ class Game : public mge::Engine {
 
     mge::HDRColourCorrection m_hdrColourCorrection;
     mge::TAA m_taa;
+    mge::Bloom m_bloom;
 
     std::string getGameName() override { return "Asteroids"; }
     
@@ -73,6 +75,9 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection = mge::HDRColourCorrection(*this);
         m_taa = mge::TAA(*this);
+        m_bloom = mge::Bloom(*this);
+        m_bloom.m_threshold = 0.125;
+        m_bloom.m_maxMipLevel = 5;
 
         m_camera = std::make_unique<mge::Camera>(*this);
         m_camera->m_near = 0.1f;
@@ -95,12 +100,12 @@ class Game : public mge::Engine {
         m_bulletMesh = std::make_unique<BulletModel::Mesh>(
             *this,
             std::vector<mge::PointColorVertex> {
-                { {   0.0f,  0.25f,   0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 0
-                { {   0.0f, -0.25f,   0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 1
-                { {  0.25f,   0.0f,   0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 2
-                { { -0.25f,   0.0f,   0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 3
-                { {   0.0f,   0.0f,  1.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 4
-                { {   0.0f,   0.0f, -1.25f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // 5
+                { {   0.0f,  0.25f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 0
+                { {   0.0f, -0.25f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 1
+                { {  0.25f,   0.0f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 2
+                { { -0.25f,   0.0f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 3
+                { {   0.0f,   0.0f,  1.25f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 4
+                { {   0.0f,   0.0f, -1.25f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 5
             },
             std::vector<uint16_t> {
                 0, 4, 3,    0, 2, 4,
@@ -204,6 +209,7 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.setup();
         m_taa.setup();
+        m_bloom.setup();
         
         makeTemplates();
 
@@ -366,6 +372,7 @@ class Game : public mge::Engine {
     void recordPostProcessingDrawCommands(vk::CommandBuffer cmd) override {
         m_hdrColourCorrection.draw(cmd);
         m_taa.draw(cmd);
+        m_bloom.draw(cmd);
     }
 
     void rebuildSwapchain() override {
@@ -373,9 +380,11 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.cleanup();
         m_taa.cleanup();
+        m_bloom.cleanup();
 
         m_hdrColourCorrection.setup();
         m_taa.setup();
+        m_bloom.setup();
     }
 
     void update(double deltaTime) override {
@@ -465,6 +474,7 @@ class Game : public mge::Engine {
 
         m_hdrColourCorrection.cleanup();
         m_taa.cleanup();
+        m_bloom.cleanup();
 
         m_asteroidModel->cleanup();
         m_asteroidMesh->cleanup();
