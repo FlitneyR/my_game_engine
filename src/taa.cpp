@@ -182,47 +182,49 @@ void TAA::setupDescriptorSets() {
     
     m_aaDescriptorSet = descriptorSets[0];
     m_sharpenDescriptorSet = descriptorSets[1];
-    
+
+    auto imageInfo = vk::DescriptorImageInfo {}
+        .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        ;
+
     auto descriptorWrite = vk::WriteDescriptorSet {}
         .setDescriptorCount(1)
         .setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
-        .setImageInfo(vk::DescriptorImageInfo {}
-            .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal))
         ;
     
     r_engine->m_device.updateDescriptorSets(std::vector<vk::WriteDescriptorSet> {
         vk::WriteDescriptorSet { descriptorWrite }
             .setDstSet(m_aaDescriptorSet)
             .setDstBinding(0)
-            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+            .setImageInfo(vk::DescriptorImageInfo { imageInfo }
                 .setImageView(m_previousFrameView)
                 .setSampler(m_previousFrameSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
             .setDstSet(m_aaDescriptorSet)
             .setDstBinding(1)
-            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+            .setImageInfo(vk::DescriptorImageInfo { imageInfo }
                 .setImageView(r_engine->m_emissiveImageView)
                 .setSampler(m_currentFrameSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
             .setDstSet(m_aaDescriptorSet)
             .setDstBinding(2)
-            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+            .setImageInfo(vk::DescriptorImageInfo { imageInfo }
                 .setImageView(r_engine->m_velocityImageView)
                 .setSampler(m_velocitySampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
             .setDstSet(m_aaDescriptorSet)
             .setDstBinding(3)
-            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+            .setImageInfo(vk::DescriptorImageInfo { imageInfo }
                 .setImageView(r_engine->m_depthImageView)
                 .setSampler(m_depthSampler))
             ,
         vk::WriteDescriptorSet { descriptorWrite }
             .setDstSet(m_sharpenDescriptorSet)
             .setDstBinding(0)
-            .setImageInfo(vk::DescriptorImageInfo { *descriptorWrite.pImageInfo }
+            .setImageInfo(vk::DescriptorImageInfo { imageInfo }
                 .setImageView(m_taaTargetView)
                 .setSampler(m_taaOutputSampler))
             ,

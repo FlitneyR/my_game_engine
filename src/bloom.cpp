@@ -228,7 +228,7 @@ void Bloom::makePipeline() {
         .setAttachments(attachment)
         ;
 
-    auto pipelineResultValue = r_engine->m_device.createGraphicsPipeline({}, vk::GraphicsPipelineCreateInfo {}
+    auto createInfo = vk::GraphicsPipelineCreateInfo {}
         .setLayout(m_pipelineLayout)
         .setPDynamicState(nullptr)
         .setPVertexInputState(&vertexInputState)
@@ -242,11 +242,18 @@ void Bloom::makePipeline() {
         .setRenderPass(m_renderPass)
         .setStages(stages)
         .setSubpass(0)
-        );
-    
-    vk::resultCheck(pipelineResultValue.result, "Failed to create bloom pipeline");
+        ;
 
-    m_pipeline = pipelineResultValue.value;
+    auto pipelineResultValue = r_engine->m_device.createGraphicsPipeline({}, createInfo);
+    vk::resultCheck(pipelineResultValue.result, "Failed to create bloom up sample pipeline");
+    m_addPipeline = pipelineResultValue.value;
+
+    attachment.setBlendEnable(false);
+    colourBlendState.setAttachments(attachment);
+    
+    pipelineResultValue = r_engine->m_device.createGraphicsPipeline({}, createInfo);
+    vk::resultCheck(pipelineResultValue.result, "Failed to create bloom down sample pipeline");
+    m_replacePipeline = pipelineResultValue.value;
 }
 
 void Bloom::makeDescriptorPool() {
@@ -319,65 +326,6 @@ void Bloom::makeDescriptorSets() {
     }
 }
 
-void Bloom::clearBloomImages(vk::CommandBuffer cmd) {
-    auto clearImageBarrier = vk::ImageMemoryBarrier {}
-        .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
-        .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
-        .setSubresourceRange(vk::ImageSubresourceRange {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseMipLevel(0)
-            .setBaseArrayLayer(0)
-            .setLevelCount(m_mipLevels)
-            .setLayerCount(1)
-            )
-        ;
-
-    cmd.pipelineBarrier(
-        vk::PipelineStageFlagBits::eFragmentShader,
-        vk::PipelineStageFlagBits::eTransfer,
-        {}, {}, {},
-        {
-            vk::ImageMemoryBarrier { clearImageBarrier }
-                .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
-                .setImage(m_vBlurImage)
-                ,
-            vk::ImageMemoryBarrier { clearImageBarrier }
-                .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
-                .setImage(m_hBlurImage)
-                ,
-            vk::ImageMemoryBarrier { clearImageBarrier }
-                .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
-                .setImage(r_engine->m_emissiveImage)
-                .setSubresourceRange(clearImageBarrier.subresourceRange
-                    .setLevelCount(1)
-                    )
-                ,
-        }
-    );
-
-    cmd.clearColorImage(
-        m_vBlurImage, vk::ImageLayout::eTransferDstOptimal,
-        vk::ClearColorValue {}.setFloat32({ 0.0f, 0.0f, 0.0f, 0.0f }),
-        vk::ImageSubresourceRange {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseArrayLayer(0)
-            .setBaseMipLevel(0)
-            .setLayerCount(1)
-            .setLevelCount(m_mipLevels)
-        );
-
-    cmd.clearColorImage(
-        m_hBlurImage, vk::ImageLayout::eTransferDstOptimal,
-        vk::ClearColorValue {}.setFloat32({ 0.0f, 0.0f, 0.0f, 0.0f }),
-        vk::ImageSubresourceRange {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseArrayLayer(0)
-            .setBaseMipLevel(0)
-            .setLayerCount(1)
-            .setLevelCount(m_mipLevels)
-        );
-}
-
 void Bloom::filterHighlights(vk::CommandBuffer cmd) {
     PushConstants pc;
     pc.m_stage = e_filterHighlights;
@@ -419,15 +367,15 @@ void Bloom::filterHighlights(vk::CommandBuffer cmd) {
 
     cmd.beginRenderPass(vk::RenderPassBeginInfo {}
         .setClearValues(vk::ClearValue {}.setColor(vk::ClearColorValue { 0, 0, 0, 0 }))
-        .setFramebuffer(m_vBlurFramebuffers[m_minMipLevel])
+        .setFramebuffer(m_vBlurFramebuffers[minMipLevel()])
         .setRenderPass(m_renderPass)
-        .setRenderArea(vk::Rect2D { { 0, 0 }, m_extentSizes[m_minMipLevel] })
+        .setRenderArea(vk::Rect2D { { 0, 0 }, m_extentSizes[minMipLevel()] })
         , vk::SubpassContents::eInline);
 
-    pc.m_viewportSize = glm::vec2 { m_extentSizes[m_minMipLevel].width, m_extentSizes[m_minMipLevel].height };
+    pc.m_viewportSize = glm::vec2 { m_extentSizes[minMipLevel()].width, m_extentSizes[minMipLevel()].height };
     cmd.pushConstants<PushConstants>(m_pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pc);
     cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, m_emissiveDescriptorSet, {});
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_replacePipeline);
     cmd.draw(3, 1, 0, 0);
     
     cmd.endRenderPass();
@@ -484,14 +432,16 @@ void Bloom::combineMipChain(vk::CommandBuffer cmd) {
             .setNewLayout(vk::ImageLayout::eGeneral)
             .setSubresourceRange(vk::ImageSubresourceRange {}
                 .setAspectMask(vk::ImageAspectFlagBits::eColor)
-                .setBaseMipLevel(m_maxMipLevel - 1)
+                .setBaseMipLevel(maxMipLevel() - 1)
                 .setBaseArrayLayer(0)
                 .setLevelCount(1)
                 .setLayerCount(1)
                 )
     );
 
-    for (int i = maxMipLevel() - 1; i >= minMipLevel(); i--) {
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_addPipeline);
+
+    for (int i = maxMipLevel() - 2; i >= minMipLevel(); i--) {
         cmd.beginRenderPass(vk::RenderPassBeginInfo {}
             .setClearValues(vk::ClearValue {}.setColor(vk::ClearColorValue { 0, 0, 0, 0 }))
             .setFramebuffer(m_vBlurFramebuffers[i])
@@ -521,7 +471,7 @@ void Bloom::overlayBloomOntoEmissive(vk::CommandBuffer cmd) {
         , vk::SubpassContents::eInline);
     
     pc.m_viewportSize = glm::vec2 { m_extentSizes[0].width, m_extentSizes[0].height };
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, m_vBlurDescriptorSets[m_minMipLevel], {});
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, m_vBlurDescriptorSets[minMipLevel()], {});
     cmd.pushConstants<PushConstants>(m_pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, pc);
     cmd.draw(3, 1, 0, 0);
 
@@ -549,7 +499,6 @@ void Bloom::overlayBloomOntoEmissive(vk::CommandBuffer cmd) {
 }
 
 void Bloom::draw(vk::CommandBuffer cmd) {
-    clearBloomImages(cmd);
     filterHighlights(cmd);
     blurDownMipChain(cmd);
     combineMipChain(cmd);

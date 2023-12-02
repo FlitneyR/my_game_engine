@@ -2,6 +2,7 @@
 #define BLOOM_HPP
 
 #include <engine.hpp>
+#include <optional>
 
 namespace mge {
 
@@ -25,7 +26,7 @@ class Bloom {
     vk::ShaderModule m_vertexShader, m_fragmentShader;
 
     vk::PipelineLayout m_pipelineLayout;
-    vk::Pipeline m_pipeline;
+    vk::Pipeline m_replacePipeline, m_addPipeline;
 
     vk::Sampler m_sampler;
 
@@ -60,15 +61,14 @@ public:
     Bloom() = default;
     Bloom(Engine& engine) : r_engine(&engine) {}
 
-    int m_minMipLevel = 1;
-    int m_maxMipLevel = 10;
+    std::optional<int> m_minMipLevel, m_maxMipLevel;
 
-    float m_threshold = 0.66;
-    float m_combineFactor = 0.99;
-    float m_overlayFactor = 0.33;
+    float m_threshold = 0.5;
+    float m_combineFactor = 0.75;
+    float m_overlayFactor = 0.25;
 
-    int minMipLevel() { return m_minMipLevel; }
-    int maxMipLevel() { return std::min(m_mipLevels, m_maxMipLevel); }
+    int minMipLevel() { return m_minMipLevel.has_value() ? m_minMipLevel.value() : 0; }
+    int maxMipLevel() { return m_maxMipLevel.has_value() ? std::min(m_mipLevels, m_maxMipLevel.value()) : m_mipLevels; }
 
     void setup() {
         makeImages();
@@ -125,7 +125,8 @@ public:
         m_extentSizes.clear();
 
         r_engine->m_device.destroyPipelineLayout(m_pipelineLayout);
-        r_engine->m_device.destroyPipeline(m_pipeline);
+        r_engine->m_device.destroyPipeline(m_addPipeline);
+        r_engine->m_device.destroyPipeline(m_replacePipeline);
 
         r_engine->m_device.destroyDescriptorSetLayout(m_descriptorSetLayout);
         r_engine->m_device.destroyDescriptorPool(m_descriptorPool);

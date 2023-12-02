@@ -54,7 +54,8 @@ void main() {
 
 void filterHighlights() {
     vec3 col = texture(s_source, g_uv).rgb;
-    f_colour = vec4(max(col - pc.threshold, 0.0), 1.0);
+    float factor = max(col.r + col.g + col.b - pc.threshold, 0.0);
+    f_colour = vec4(col * factor, 1.0);
 }
 
 float gaussian(float f) {
@@ -86,5 +87,5 @@ void combine() {
 
 void overlay() {
     vec3 bloom = texture(s_source, g_uv).rgb;
-    f_colour = vec4(bloom, pc.overlayFactor);
+    f_colour = vec4(bloom / (bloom + 1.0), pc.overlayFactor);
 }

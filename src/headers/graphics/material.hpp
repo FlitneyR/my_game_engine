@@ -257,7 +257,7 @@ void MATERIAL::createPipeline() {
         rasterizationState
             .setDepthBiasEnable(true)
             .setDepthBiasConstantFactor(5.f)
-            .setCullMode(vk::CullModeFlagBits::eFront)
+            .setCullMode(vk::CullModeFlagBits::eNone)
             .setDepthBiasSlopeFactor(5.f)
             ;
         
