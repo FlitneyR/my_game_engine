@@ -59,19 +59,19 @@ void filterHighlights() {
 }
 
 float gaussian(float f) {
-    return exp(-pow(f, 2));
+    return exp(-(f * f));
 }
 
 void blur() {
     vec3 col = vec3(0);
     float weightSum = 0;
 
-    for (float i = -1.0; i <= 1.0; i += 1.0) {
+    for (float i = -5.0; i <= 5.0; i += 2.5) {
         vec2 offset = g_directions[pc.direction];
 
         vec2 uv = g_uv + offset * i / pc.viewportSize;
 
-        float factor = gaussian(i);
+        float factor = gaussian(i / 2.5);
 
         col += texture(s_source, uv).rgb * factor;
         weightSum += factor;

@@ -1,5 +1,7 @@
 #version 450
 
+#include "camera.glsl"
+
 layout(location = 0) in vec4 position;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec3 tangent;
@@ -9,15 +11,7 @@ layout(location = 5) in mat4 modelTransform;
 
 layout(location = 0) out vec2 v_texcoord;
 
-layout(set = 0, binding = 0) uniform Camera {
-    mat4 view;
-    mat4 perspective;
-    vec2 jitter;
-    
-    mat4 previousView;
-    mat4 previousPerspective;
-    vec2 previousJitter;
-} camera;
+layout(set = 0, binding = 0) uniform Uniform_0_0 { Camera camera; };
 
 void main() {
     gl_Position = camera.perspective * camera.view * modelTransform * position;

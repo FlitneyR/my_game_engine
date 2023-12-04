@@ -16,7 +16,7 @@ vec3 aces(vec3 x) {
 void main() {
     vec3 colour = subpassLoad(i_emissive).rgb;
     colour = colour / (colour + vec3(1.0));
-    // colour = aces(colour);
-    // colour = pow(colour, vec3(1.0 / 1.5));
+    colour = aces(colour);
+    colour = pow(colour, vec3(1.0 / 1.2));
     f_emissive = vec4(colour, 1.0);
 }
