@@ -908,6 +908,9 @@ uint32_t Engine::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags pro
 }
 
 void Engine::draw() {
+    m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
+    m_framecount++;
+
     auto waitResult = m_device.waitForFences(m_commandBufferReadyFences[m_currentInFlightFrame], true, UINT64_MAX);
     vk::resultCheck(waitResult, "Failed to wait for command-buffer-ready fence");
     m_device.resetFences(m_commandBufferReadyFences[m_currentInFlightFrame]);
@@ -1066,14 +1069,6 @@ void Engine::draw() {
     if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
         rebuildSwapchain();
     } else vk::resultCheck(presentResult, "Failed to present render result");
-
-    // this is not ideal, but there is a bug where the camera projection uniform buffer gets out of sync
-    // between the geometry pass and the lighting pass when the frame rate is too low
-    // this line avoids that
-    m_device.waitIdle();
-
-    m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
-    m_framecount++;
 }
 
 void Engine::cleanup() {
