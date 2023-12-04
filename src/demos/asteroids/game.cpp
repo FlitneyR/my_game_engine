@@ -174,6 +174,7 @@ class Game : public mge::Engine {
         m_modelSystem.addModel("Asteroid", m_asteroidModel.get());
         m_modelSystem.addModel("Spaceship", m_spaceshipModel.get());
         m_modelSystem.addModel("Bullet", m_bulletModel.get());
+        m_modelSystem.addModel("Skybox", m_skyboxModel.get());
 
         m_ecsManager.r_engine = this;
         m_ecsManager.addSystem("Asteroid", &m_asteroidSystem);
@@ -325,6 +326,13 @@ class Game : public mge::Engine {
         });
     }
 
+    void updateBuffers() override {
+        m_camera->updateBuffer();
+        // m_skyboxModel->updateInstanceBuffer();
+        m_modelSystem.updateTransforms();
+        m_lightSystem.update();
+    }
+
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
         for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) {
             light->m_materialInstance.beginShadowMapRenderPass(cmd, light->getInstance(0));
@@ -360,8 +368,6 @@ class Game : public mge::Engine {
     }
 
     void recordLightingDrawCommands(vk::CommandBuffer cmd) override {
-        m_light->updateInstanceBuffer();
-
         m_lightMaterial->bindPipeline(cmd);
         m_lightMaterial->bindUniform(cmd, *m_camera);
         m_light->drawInstances(cmd);
@@ -447,15 +453,6 @@ class Game : public mge::Engine {
         m_camera->m_fov = glm::mix(m_camera->m_fov, targetFov, deltaTime * 0.1f);
 
         m_skyboxModel->getInstance(0).m_modelTransform = glm::translate(glm::mat4 { 1.f }, m_camera->m_position);
-
-        m_modelSystem.updateTransforms();
-        m_lightSystem.update();
-
-        m_camera->updateBuffer();
-        m_spaceshipModel->updateInstanceBuffer();
-        m_skyboxModel->updateInstanceBuffer();
-        m_bulletModel->updateInstanceBuffer();
-        m_asteroidModel->updateInstanceBuffer();
     }
 
     void end() override {
