@@ -76,8 +76,9 @@ class Game : public mge::Engine {
         m_hdrColourCorrection = mge::HDRColourCorrection(*this);
         m_taa = mge::TAA(*this);
         m_bloom = mge::Bloom(*this);
-        m_bloom.m_threshold = 0.125;
-        m_bloom.m_maxMipLevel = 5;
+        m_bloom.m_threshold = 0.25;
+        m_bloom.m_combineFactor = 0.95;
+        m_bloom.m_overlayFactor = 0.5;
 
         m_camera = std::make_unique<mge::Camera>(*this);
         m_camera->m_near = 0.1f;
@@ -97,15 +98,16 @@ class Game : public mge::Engine {
             {{  3.f, -1.f, 0.f }},
         }, { 0, 1, 2, }));
 
+        glm::vec4 bulletColour { 100.0, 0.0, 0.0, 1.0 };
         m_bulletMesh = std::make_unique<BulletModel::Mesh>(
             *this,
             std::vector<mge::PointColorVertex> {
-                { {   0.0f,  0.25f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 0
-                { {   0.0f, -0.25f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 1
-                { {  0.25f,   0.0f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 2
-                { { -0.25f,   0.0f,   0.0f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 3
-                { {   0.0f,   0.0f,  1.25f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 4
-                { {   0.0f,   0.0f, -1.25f }, { 10.0f, 0.0f, 0.0f, 1.0f } }, // 5
+                { {   0.0f,  0.25f,   0.0f }, bulletColour }, // 0
+                { {   0.0f, -0.25f,   0.0f }, bulletColour }, // 1
+                { {  0.25f,   0.0f,   0.0f }, bulletColour }, // 2
+                { { -0.25f,   0.0f,   0.0f }, bulletColour }, // 3
+                { {   0.0f,   0.0f,  1.25f }, bulletColour }, // 4
+                { {   0.0f,   0.0f, -1.25f }, bulletColour }, // 5
             },
             std::vector<uint16_t> {
                 0, 4, 3,    0, 2, 4,
