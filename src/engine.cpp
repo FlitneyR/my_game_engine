@@ -908,12 +908,11 @@ uint32_t Engine::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags pro
 }
 
 void Engine::draw() {
-    m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
-    m_framecount++;
-
     auto waitResult = m_device.waitForFences(m_commandBufferReadyFences[m_currentInFlightFrame], true, UINT64_MAX);
     vk::resultCheck(waitResult, "Failed to wait for command-buffer-ready fence");
     m_device.resetFences(m_commandBufferReadyFences[m_currentInFlightFrame]);
+
+    updateBuffers();
 
     auto nextImageResult = m_device.acquireNextImageKHR(m_swapchain, UINT64_MAX, m_imageAvailableSemaphores[m_currentInFlightFrame]);
 
@@ -923,11 +922,8 @@ void Engine::draw() {
     auto imageIndex = nextImageResult.value;
 
     vk::CommandBuffer cmd = m_commandBuffers[m_currentInFlightFrame];
-
     cmd.reset();
-
-    vk::CommandBufferBeginInfo beginInfo;
-    cmd.begin(beginInfo);
+    cmd.begin(vk::CommandBufferBeginInfo {});
 
     recordShadowMapDrawCommands(cmd);
 
@@ -955,21 +951,19 @@ void Engine::draw() {
         vk::ClearValue {}.setColor({ 0.f, 0.f, 0.f, 1.f }),    // velocity
     };
 
-    auto renderPassBeginInfo = vk::RenderPassBeginInfo {}
+    cmd.setViewport(0, viewport);
+    cmd.setScissor(0, scissor);
+    cmd.beginRenderPass(vk::RenderPassBeginInfo {}
         .setClearValues(clearValues)
         .setFramebuffer(m_framebuffers[imageIndex])
         .setRenderArea({ {}, m_swapchainExtent })
         .setRenderPass(m_renderPass)
-        ;
-
-    cmd.setViewport(0, viewport);
-    cmd.setScissor(0, scissor);
-    cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        , vk::SubpassContents::eInline);
 
     recordGBufferDrawCommands(cmd);
     cmd.nextSubpass(vk::SubpassContents::eInline);
     recordLightingDrawCommands(cmd);
-
+    
     cmd.endRenderPass();
 
     recordPostProcessingDrawCommands(cmd);
@@ -1043,32 +1037,28 @@ void Engine::draw() {
     cmd.end();
 
     vk::Queue graphicsQueue = m_device.getQueue(*m_queueFamilies.graphicsFamily, 0);
-    
     vk::PipelineStageFlags waitDstStageMask = vk::PipelineStageFlagBits::eTopOfPipe;
 
-    std::vector<vk::SubmitInfo> submits {
-        vk::SubmitInfo {}
-            .setCommandBuffers(cmd)
-            .setWaitSemaphores(m_imageAvailableSemaphores[m_currentInFlightFrame])
-            .setWaitDstStageMask(waitDstStageMask)
-            .setSignalSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
-            ,
-    };
+    graphicsQueue.submit(vk::SubmitInfo {}
+        .setCommandBuffers(cmd)
+        .setWaitSemaphores(m_imageAvailableSemaphores[m_currentInFlightFrame])
+        .setWaitDstStageMask(waitDstStageMask)
+        .setSignalSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
+        , m_commandBufferReadyFences[m_currentInFlightFrame]);
 
-    graphicsQueue.submit(submits, m_commandBufferReadyFences[m_currentInFlightFrame]);
-
-    auto presentInfo = vk::PresentInfoKHR {}
+    vk::Queue presentQueue = m_device.getQueue(*m_queueFamilies.presentFamily, 0);
+    auto presentResult = presentQueue.presentKHR(vk::PresentInfoKHR {}
         .setImageIndices(imageIndex)
         .setSwapchains(m_swapchain)
         .setWaitSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
-        ;
-
-    vk::Queue presentQueue = m_device.getQueue(*m_queueFamilies.presentFamily, 0);
-    auto presentResult = presentQueue.presentKHR(presentInfo);
+        );
 
     if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
         rebuildSwapchain();
     } else vk::resultCheck(presentResult, "Failed to present render result");
+
+    m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
+    m_framecount++;
 }
 
 void Engine::cleanup() {

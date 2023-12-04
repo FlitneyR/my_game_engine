@@ -75,7 +75,7 @@ class Game : public mge::Engine {
     mge::HDRColourCorrection m_hdrColourCorrection;
     mge::TAA m_taa;
     mge::Bloom m_bloom;
-    
+
     void start() override {
         m_ecsManager.r_engine = this;
         m_ecsManager.addSystem("Model", &m_modelSystem);
@@ -247,14 +247,6 @@ class Game : public mge::Engine {
 
     void update(double deltaTime) override {
         updateCameraPosition(deltaTime);
-
-        m_camera->updateBuffer();
-        m_modelSystem.updateTransforms();
-        m_lightSystem.update();
-        m_light->updateInstanceBuffer();
-
-        for (auto& [ _, light ] : m_lightSystem.m_shadowMappedLights) light->updateInstanceBuffer();
-        for (auto& model : m_models) model->updateInstanceBuffer();
     }
 
     void keyCallback(int key, int scancode, int action, int mods) override {
@@ -352,6 +344,12 @@ class Game : public mge::Engine {
         // auto spotLightTransform = m_transformSystem.getComponent(m_spotLightEntity);
         // spotLightTransform->setPosition(cameraTransform->getPosition() + cameraTransform->getForward() * 0.25f);
         // spotLightTransform->setRotation(cameraTransform->getRotation());
+    }
+
+    void updateBuffers() override {
+        m_camera->updateBuffer();
+        m_modelSystem.updateTransforms();
+        m_lightSystem.update();
     }
 
     void recordShadowMapDrawCommands(vk::CommandBuffer cmd) override {
