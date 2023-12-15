@@ -19,6 +19,8 @@ layout(set = 1, binding = 3, input_attachment_index = 3) uniform subpassInput i_
 
 layout(set = 0, binding = 0) uniform Uniform_0_0 { Camera camera; };
 
+const float MINIMUM_RADIANCE = 0.01;
+
 void main() {
     float depth = subpassLoad(i_depth).r;
     vec3 albedo = subpassLoad(i_albedo).rgb;
@@ -55,6 +57,8 @@ void main() {
         radiance = v_colour * angleFalloff * angleFalloff / (dist * dist);
         break;
     }
+
+    if (length(radiance) < MINIMUM_RADIANCE) discard;
    
     vec3 colour = calculateLighting(gd, lightDirection, radiance);
 

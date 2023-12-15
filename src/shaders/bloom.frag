@@ -12,6 +12,9 @@ const int STAGE_OVERLAY = 3;
 const int DIRECTION_HORIZONTAL = 0;
 const int DIRECTION_VERTICAL = 1;
 
+const float BLUR_RADIUS = 1.0;
+const int BLUR_SAMPLES = 3;
+
 const vec2[2] g_directions = vec2[2](
     vec2(1.0, 0.0),
     vec2(0.0, 1.0)
@@ -66,12 +69,12 @@ void blur() {
     vec3 col = vec3(0);
     float weightSum = 0;
 
-    for (float i = -5.0; i <= 5.0; i += 2.5) {
+    for (float i = -BLUR_RADIUS; i <= BLUR_RADIUS; i += BLUR_RADIUS / float(BLUR_SAMPLES)) {
         vec2 offset = g_directions[pc.direction];
 
         vec2 uv = g_uv + offset * i / pc.viewportSize;
 
-        float factor = gaussian(i / 2.5);
+        float factor = gaussian(i / (0.5 * BLUR_RADIUS));
 
         col += texture(s_source, uv).rgb * factor;
         weightSum += factor;

@@ -1,3 +1,5 @@
+# === Definitions ===
+
 DEPENDENCIES = glm glfw3 vulkan
 INCLUDES = -Isrc/headers -Isrc/headers/ECS -Isrc/headers/graphics `pkg-config --cflags $(DEPENDENCIES)`
 
@@ -13,6 +15,7 @@ MAIN_DEPENDENCIES = build/engine.o \
 					build/postProcessing.o \
 					build/taa.o \
 					build/bloom.o \
+					build/collision.o \
 
 COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/pbr.frag.spv \
@@ -29,14 +32,30 @@ COMPILED_SHADERS = build/mvp.vert.spv \
 				   build/sharpen.frag.spv \
 				   build/bloom.frag.spv \
 
-# bin/main: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
-main: bin/main shaders
+# === Asteroids Game ===
+asteroids: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
+asteroids: bin/asteroids shaders
+	bin/asteroids
 
-bin/main: build/main.o $(MAIN_DEPENDENCIES)
+bin/asteroids: build/asteroids.o $(MAIN_DEPENDENCIES)
 	clang++ $(LFLAGS) -o $@ $^
 
-build/main.o: src/main.cpp
+build/asteroids.o: src/demos/asteroids/asteroids.cpp src/demos/asteroids/logic.hpp
 	clang++ $(CFLAGS) -o $@ $<
+
+
+# === Sponza Demo ===
+sponza: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
+sponza: bin/sponza shaders
+	bin/sponza
+
+bin/sponza: build/sponza.o $(MAIN_DEPENDENCIES)
+	clang++ $(LFLAGS) -o $@ $^
+
+build/sponza.o: src/demos/sponza/sponza.cpp
+	clang++ $(CFLAGS) -o $@ $<
+
+# === Generics ===
 
 build/%.o: src/%.cpp src/headers/%.hpp
 	clang++ $(CFLAGS) -o $@ $<
@@ -48,10 +67,6 @@ build/%.spv: src/shaders/%
 	glslc -o $@ $<
 
 shaders: $(COMPILED_SHADERS)
-
-run: export DYLD_LIBRARY_PATH := $(VULKAN_SDK_LIB_PATH):$(DYLD_LIBRARY_PATH)
-run: main
-	bin/main
 
 clean:
 	rm -f build/* bin/*

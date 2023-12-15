@@ -11,7 +11,7 @@
 #include <vector>
 #include <string>
 
-class Game : public mge::Engine {
+class Sponza : public mge::Engine {
 
     mge::ecs::ECSManager m_ecsManager;
 
@@ -85,6 +85,7 @@ class Game : public mge::Engine {
         m_hdrColourCorrection = mge::HDRColourCorrection(*this);
         m_taa = mge::TAA(*this);
         m_bloom = mge::Bloom(*this);
+        m_bloom.m_maxMipLevel = 5;
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
             loadShaderModule("build/mvp.vert.spv"),
@@ -177,7 +178,7 @@ class Game : public mge::Engine {
             );
 
             sunLight->m_type = sunLight->e_directional;
-            sunLight->m_colour = glm::vec3 { 2.f, 1.5f, 1.f } * 15.f;
+            sunLight->m_colour = glm::vec3 { 2.f, 1.5f, 1.f } * 7.5f;
             sunLight->m_shadowRange = 30.f;
             sunLight->m_near = -1000.f;
             sunLight->m_far = 500.f;
@@ -192,8 +193,8 @@ class Game : public mge::Engine {
 
             transform->setPosition({ -10.5f, -4.5f, 2.5f });
             transform->setRotation(
-                glm::angleAxis(glm::radians(-30.f), glm::vec3 { 1.f, 0.f, 0.f }) *
-                glm::angleAxis(glm::radians(-20.f), glm::vec3 { 0.f, 0.f, 1.f })
+                glm::angleAxis(glm::radians(-20.f), glm::vec3 { 0.f, 0.f, 1.f }) *
+                glm::angleAxis(glm::radians(-30.f), glm::vec3 { 1.f, 0.f, 0.f })
             );
 
             spotLight->m_type = mge::LightInstance::e_spot;
@@ -205,19 +206,41 @@ class Game : public mge::Engine {
             m_spotLightEntity = entity;
         }
 
-        std::vector<glm::vec3> colours { { 1.f, 0.1f, 0.1f }, { 0.1f, 1.f, 0.1f }, { 0.1f, 0.1f, 1.f } };
-        int index = 0;
-
-        for (int i = -1; i <= 1; i++) { // point lights
+        {   // spot light
             auto entity = m_ecsManager.makeEntity();
-            m_lightSystem.addComponent(entity);
-            auto pointLight = m_lightSystem.getInstance(entity);
-            pointLight->m_type = pointLight->e_point;
-            pointLight->m_colour = colours[index++] * 10.f;
+            m_lightSystem.addComponentShadowMapped(entity, 2048);
+            
+            auto spotLight = m_lightSystem.getInstance(entity);
+            auto transform = m_transformSystem.getComponent(entity);
 
-            m_transformSystem.getComponent(entity)
-                ->setPosition(glm::vec3 { 5.f * i, 0.5f, 0.125f });
+            transform->setPosition({ -10.5f, 4.5f, 2.5f });
+            transform->setRotation(
+                glm::angleAxis(glm::radians(210.f), glm::vec3 { 0.f, 0.f, 1.f }) *
+                glm::angleAxis(glm::radians(-30.f), glm::vec3 { 1.f, 0.f, 0.f })
+            );
+
+            spotLight->m_type = mge::LightInstance::e_spot;
+            spotLight->m_colour = glm::vec3 { 1.f, 2.f, 0.5f } * 75.f;
+            spotLight->m_angle = glm::radians(45.f);
+            spotLight->m_near = 0.01f;
+            spotLight->m_far = 500.f;
+
+            m_spotLightEntity = entity;
         }
+
+        // std::vector<glm::vec3> colours { { 1.f, 0.1f, 0.1f }, { 0.1f, 1.f, 0.1f }, { 0.1f, 0.1f, 1.f } };
+        // int index = 0;
+
+        // for (int i = -1; i <= 1; i++) { // point lights
+        //     auto entity = m_ecsManager.makeEntity();
+        //     m_lightSystem.addComponent(entity);
+        //     auto pointLight = m_lightSystem.getInstance(entity);
+        //     pointLight->m_type = pointLight->e_point;
+        //     pointLight->m_colour = colours[index++] * 10.f;
+
+        //     m_transformSystem.getComponent(entity)
+        //         ->setPosition(glm::vec3 { 5.f * i, 0.5f, 0.125f });
+        // }
 
         m_cameraEntity = m_ecsManager.makeEntity();
         m_transformSystem.addComponent(m_cameraEntity)->setPosition({ 0.f, 0.f, 2.f });
@@ -459,3 +482,13 @@ class Game : public mge::Engine {
         m_bloom.cleanup();
     }
 };
+
+int main() {
+    Sponza game;
+
+    game.init(1280, 720);
+    game.main();
+    game.cleanup();
+
+    return 0;
+}

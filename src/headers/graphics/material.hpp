@@ -255,10 +255,10 @@ void MATERIAL::createPipeline() {
             ;
         
         rasterizationState
-            .setDepthBiasEnable(true)
-            .setDepthBiasConstantFactor(5.f)
-            .setCullMode(vk::CullModeFlagBits::eNone)
-            .setDepthBiasSlopeFactor(5.f)
+            // .setDepthBiasEnable(true)
+            // .setDepthBiasConstantFactor(5.f)
+            // .setDepthBiasSlopeFactor(5.f)
+            .setCullMode(vk::CullModeFlagBits::eFront)
             ;
         
         if (!m_usesAlphaClipping) createInfo.setStages(stages[0]);

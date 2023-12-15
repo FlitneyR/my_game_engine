@@ -43,7 +43,7 @@ public:
         }
     }
 
-    void resolveCollisions(std::vector<CollisionComponent::CollisionEvent> collisionEvents) {
+    void resolveCollisions(std::vector<CollisionEvent> collisionEvents) {
         auto transformSystem = r_ecsManager->getSystem<TransformComponent>("Transform");
 
         for (const auto& collisionEvent : collisionEvents)

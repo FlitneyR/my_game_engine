@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 
-class Game : public mge::Engine {
+class Asteroids : public mge::Engine {
     typedef mge::Model<mge::ModelVertex, mge::ModelTransformMeshInstance, mge::NTextureMaterialInstance<3>, mge::Camera> ObjectModel;
     typedef mge::Model<mge::ModelVertex, mge::ModelTransformMeshInstance, mge::NTextureMaterialInstance<1>, mge::Camera> SkyboxModel;
     typedef mge::Model< mge::PointColorVertex, mge::ModelTransformMeshInstance, mge::SimpleMaterialInstance, mge::Camera> BulletModel;
@@ -79,6 +79,7 @@ class Game : public mge::Engine {
         m_bloom.m_threshold = 0.25;
         m_bloom.m_combineFactor = 0.95;
         m_bloom.m_overlayFactor = 0.5;
+        // m_bloom.m_maxMipLevel = 5;
 
         m_camera = std::make_unique<mge::Camera>(*this);
         m_camera->m_near = 0.1f;
@@ -259,7 +260,7 @@ class Game : public mge::Engine {
             auto asteroid = m_asteroidSystem.addComponent(entity);
 
             float radius = glm::mix(5.f, 40.f, glm::pow(randomRangeFloat(0.f, 1.f), 10.f));
-            collider->setupSphere(radius);
+            collider->setCollider(mge::ecs::SphereCollider(radius));
 
             transform->setPosition(glm::vec3 {
                 randomRangeFloat(-1.f, 1.f),
@@ -291,7 +292,7 @@ class Game : public mge::Engine {
             bulletRigidbody->m_physicsType = bulletRigidbody->e_dynamic;
             bulletRigidbody->m_mass = 0.001f;
 
-            bulletCollision->setupSphere(1.f);
+            bulletCollision->setCollider(mge::ecs::SphereCollider(1.f));
 
             light->m_type = light->e_point;
             light->m_colour = glm::vec3 { 100.f, 0.f, 0.f };
@@ -311,7 +312,7 @@ class Game : public mge::Engine {
             m_lightSystem.addComponentShadowMapped(entity, 2048);
             auto spaceshipLight = m_lightSystem.getInstance(entity);
 
-            collision->setupSphere(2.f);
+            collision->setCollider(mge::ecs::OBBCollider(1.5f, 0.5f, 1.5f));
 
             rigidbody->m_physicsType = rigidbody->e_dynamic;
             rigidbody->m_mass = 50.f;
@@ -420,13 +421,13 @@ class Game : public mge::Engine {
         auto spaceship = m_spaceshipSystem.getComponent(spaceshipEntity);
         auto spaceshipTransform = m_transformSystem.getComponent(spaceshipEntity);
 
-        if (spaceship->m_alive)
+        if (spaceship->isAlive())
             m_asteroidSystem.wrapAsteroids();
 
         glm::vec3 cameraTargetPosition, cameraFocus, cameraUp;
         float targetFov;
 
-        if (spaceship->m_alive) {
+        if (spaceship->isAlive()) {
             cameraTargetPosition = spaceshipTransform->getPosition();
             cameraTargetPosition += spaceshipTransform->getForward() * -10.f;
             cameraTargetPosition += spaceshipTransform->getUp() * 5.f;
@@ -496,3 +497,13 @@ class Game : public mge::Engine {
         m_skyboxMaterial->cleanup();
     }
 };
+
+int main() {
+    Asteroids game;
+
+    game.init(1280, 720);
+    game.main();
+    game.cleanup();
+
+    return 0;
+}

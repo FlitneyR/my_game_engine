@@ -16,8 +16,19 @@ struct BulletComponent : public mge::ecs::Component {
 };
 
 struct SpaceshipComponent : public mge::ecs::Component {
-    bool m_alive = true;
+    // bool m_alive = true;
     float m_fireCooldown = 0.f;
+    float m_deathTimer = 0.f;
+
+    static constexpr float s_deathDuration = 5.f;
+
+    inline void die() { m_deathTimer = s_deathDuration; }
+
+    inline void updateDeathTimer(float deltaTime) {
+        m_deathTimer = m_deathTimer - deltaTime;
+    }
+
+    inline bool isAlive() const { return m_deathTimer <= 0.f; }
 };
 
 class AsteroidSystem : public mge::ecs::System<AsteroidComponent> {
@@ -59,7 +70,7 @@ public:
         auto oldRigidbody = rigidbodySystem->getComponent(entity);
         auto oldCollision = collisionSystem->getComponent(entity);
 
-        float radius = oldCollision->m_shapeParameters.u_sphereParameters.m_radius;
+        float radius = static_cast<mge::ecs::SphereCollider*>(oldCollision->m_collider.get())->m_radius;
 
         if (radius <= 3.f) return;
 
@@ -77,7 +88,7 @@ public:
             transform->setPosition(oldTransform->getPosition() + glm::normalize(breakAxis) * i * newRadius);
             transform->setScale(glm::vec3 { newRadius });
 
-            collision->setupSphere(newRadius);
+            collision->setCollider(mge::ecs::SphereCollider(newRadius));
 
             rigidbody->m_mass = newRadius * newRadius * newRadius;
             
@@ -105,7 +116,7 @@ public:
             r_ecsManager->destroyEntity(entity);
     }
 
-    void handleCollisions(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisionEvents) {
+    void handleCollisions(const std::vector<mge::ecs::CollisionEvent>& collisionEvents) {
         auto asteroidSystem = static_cast<AsteroidSystem*>(r_ecsManager->getSystem<AsteroidComponent>("Asteroid"));
 
         std::vector<mge::ecs::Entity> entitiesToDestroy;
@@ -130,15 +141,15 @@ public:
     constexpr static float ACCELERATION_RATE = 25.f;
     constexpr static float RATE_OF_FIRE = 0.125f;
 
-    void checkForAsteroidCollision(const std::vector<mge::ecs::CollisionComponent::CollisionEvent>& collisions) {
+    void checkForAsteroidCollision(const std::vector<mge::ecs::CollisionEvent>& collisions) {
         auto asteroidSystem = r_ecsManager->getSystem<AsteroidComponent>("Asteroid");
         auto rigidbodySystem = r_ecsManager->getSystem<mge::ecs::RigidbodyComponent>("Rigidbody");
 
         for (auto& collision : collisions)
         if (auto spaceship = getComponent(collision.m_thisEntity))
-        if (spaceship->m_alive)
+        if (spaceship->isAlive())
         if (asteroidSystem->getComponent(collision.m_otherEntity)) {
-            spaceship->m_alive = false;
+            spaceship->die();
 
             if (auto rigidbody = rigidbodySystem->getComponent(spaceship->m_entity)) {
                 rigidbody->m_angularVelocity = mge::Engine::randomUnitVector() * mge::Engine::randomRangeFloat(0.f, 3.f);
@@ -156,41 +167,45 @@ public:
         turnInput = glm::mix(turnInput, static_cast<float>(turnLeft - turnRight), glm::clamp(2.f * deltaTime, 0.f, 1.f));
         pitchInput = glm::mix(pitchInput, static_cast<float>(pitchDown - pitchUp), glm::clamp(2.f * deltaTime, 0.f, 1.f));
 
-        for (auto& [ entity, comp ] : m_components)
-        if (comp.m_alive)
-        if (auto transform = transformSystem->getComponent(entity))
-        if (auto rigidbody = rigidbodySystem->getComponent(entity)) {
-            comp.m_fireCooldown = glm::max(0.f, comp.m_fireCooldown - deltaTime);
-            float pitchDelta = pitchInput * PITCH_RATE * deltaTime;
-            float turnDelta = turnInput * TURN_RATE * deltaTime;
+        for (auto& [ entity, comp ] : m_components) {
+            comp.updateDeathTimer(deltaTime);
 
-            transform->setRotation(
-                glm::angleAxis(turnDelta, transform->getUp()) *
-                glm::angleAxis(-0.5f * turnDelta, transform->getForward()) *
-                glm::angleAxis(pitchDelta, transform->getRight()) *
-                transform->getRotation()
-            );
+            if (comp.isAlive())
+            if (auto transform = transformSystem->getComponent(entity))
+            if (auto rigidbody = rigidbodySystem->getComponent(entity)) {
+                comp.m_fireCooldown = glm::max(0.f, comp.m_fireCooldown - deltaTime);
+                float pitchDelta = pitchInput * PITCH_RATE * deltaTime;
+                float turnDelta = turnInput * TURN_RATE * deltaTime;
 
-            rigidbody->m_velocity *= glm::clamp(1.f - 0.1f * deltaTime, 0.f, 1.f);
-            rigidbody->m_acceleration = transform->getForward() * (ACCELERATION_RATE * accelerate);
+                transform->setRotation(
+                    glm::angleAxis(turnDelta, transform->getUp()) *
+                    glm::angleAxis(-0.5f * turnDelta, transform->getForward()) *
+                    glm::angleAxis(pitchDelta, transform->getRight()) *
+                    transform->getRotation()
+                );
 
-            static float side = -1.f;
+                rigidbody->m_velocity *= glm::clamp(1.f - 0.1f * deltaTime, 0.f, 1.f);
+                rigidbody->m_acceleration = transform->getForward() * (ACCELERATION_RATE * accelerate);
+                rigidbody->m_angularVelocity = glm::vec3(0.f);
 
-            if (fire)
-            if (comp.m_fireCooldown <= 0.f) {
-                comp.m_fireCooldown = RATE_OF_FIRE;
+                static float side = -1.f;
 
-                auto bulletEntity = r_ecsManager->makeEntityFromTemplate("Bullet");
+                if (fire)
+                if (comp.m_fireCooldown <= 0.f) {
+                    comp.m_fireCooldown = RATE_OF_FIRE;
 
-                auto bulletTransform = transformSystem->getComponent(bulletEntity);
-                auto bulletRigidbody = rigidbodySystem->getComponent(bulletEntity);
+                    auto bulletEntity = r_ecsManager->makeEntityFromTemplate("Bullet");
 
-                bulletTransform->setPosition(transform->getPosition() + transform->getForward() * 3.f + transform->getRight() * side);
-                bulletTransform->setRotation(transform->getRotation() * glm::angleAxis(glm::half_pi<float>(), glm::vec3 { 1.f, 0.f, 0.f }));
+                    auto bulletTransform = transformSystem->getComponent(bulletEntity);
+                    auto bulletRigidbody = rigidbodySystem->getComponent(bulletEntity);
 
-                bulletRigidbody->m_velocity = rigidbody->m_velocity + transform->getForward() * 100.f;
+                    bulletTransform->setPosition(transform->getPosition() + transform->getForward() * 3.f + transform->getRight() * side);
+                    bulletTransform->setRotation(transform->getRotation() * glm::angleAxis(glm::half_pi<float>(), glm::vec3 { 1.f, 0.f, 0.f }));
 
-                side *= -1.f;
+                    bulletRigidbody->m_velocity = rigidbody->m_velocity + transform->getForward() * 100.f;
+
+                    side *= -1.f;
+                }
             }
         }
     }

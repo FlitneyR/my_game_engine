@@ -81,6 +81,9 @@ GeometryData makeGeometryData(Camera camera, vec2 screenCoord, float depth, vec3
 }
 
 vec3 calculateLighting(GeometryData gd, vec3 lightDirection, vec3 radiance) {
+    // lightDirection = normalize(lightDirection);
+    // gd.normal = normalize(gd.normal);
+
     // vec3 diffuse = gd.albedo * radiance * max(dot(lightDirection, gd.normal), 0);
 
     // vec3 halfWay = normalize(gd.viewDir + lightDirection);
