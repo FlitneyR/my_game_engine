@@ -109,6 +109,8 @@ AABB CapsuleCollider::getAABB() const {
     result.m_maxY = std::max(result.m_maxY, getSupportPoint(glm::vec3 {  0,  1,  0 }).y);
     result.m_minZ = std::min(result.m_minZ, getSupportPoint(glm::vec3 {  0,  0, -1 }).z);
     result.m_maxZ = std::max(result.m_maxZ, getSupportPoint(glm::vec3 {  0,  0,  1 }).z);
+
+    return result;
 }
 
 glm::vec3 CapsuleCollider::getSupportPoint(const glm::vec3& direction) const {
