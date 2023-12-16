@@ -13,29 +13,30 @@ This is my attempt at a simple Vulkan-based game engine.
 ## Goal
 
 To create a simple game engine with the following features:
-- GPU accelerated rendering in Vulkan
+- GPU-accelerated rendering in Vulkan
 - An Entity Component System
 - A Simple Physics System
 
 
 ### Graphics
 
-The graphics system consists of two renderpass subpasses:
+The graphics system uses deferred rendering to support limitless lights and more advanced graphics techniques.
+The graphics pipeline consists of the following passes
 - a GBuffer pass, which renders surface information to a geometry buffer consisting of five textures:
     - albedo, the surface's base colour
     - normal, the direction the surface is facing
     - ambient occlusion - roughness - metallness, the physical properties of the surface
     - emissive, how much light the surface is emitting
     - and depth, analogous to the distance the surface is from the camera
-- and a lighting pass, which computes surface illumination from each light in the scene and outputs to the emissive texture
+- a lighting pass, which computes surface illumination from each light in the scene and outputs to the emissive texture
+- a post-processing pass to add bloom, colour correction, and apply Temporal Anti Aliasing
 
-TODO!
-- Add a post processing subpass
-- Add a TAA subpass
+### TODO!
+- Add occlusion culling
 
 ### Physics
 
-The physics system is implemented within the ECS framework. It currently supports only Sphere-Sphere collision. It uses a Binary Space Partition Tree to reduce the number of pairs of colliders it needs to check collisions between.
+The physics system is implemented within the ECS framework. It uses an SAT algorithm to support collisions between spheres, oriented bounding boxes, and capsules. It uses a Binary Space Partition Tree to reduce the number of pairs of colliders it needs to check collisions between.
 
 The Binary Space Partition Tree works as follows:
 - Determine the mean position of all colliders
