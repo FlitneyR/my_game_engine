@@ -128,19 +128,19 @@ class Asteroids : public mge::Engine {
         m_skyboxTexture = mge::Texture("assets/asteroids/skybox.png");
 
         m_objectMaterial = std::make_unique<ObjectModel::Material>(*this,
-            loadShaderModule("build/mvp.vert.spv"), loadShaderModule("build/pbr.frag.spv"));
+            loadShaderModule("mvp.vert.spv"), loadShaderModule("pbr.frag.spv"));
 
         m_skyboxMaterial = std::make_unique<mge::SkyboxMaterial>(*this,
-            loadShaderModule("build/skybox.vert.spv"), loadShaderModule("build/skybox.frag.spv"));
+            loadShaderModule("skybox.vert.spv"), loadShaderModule("skybox.frag.spv"));
         
         m_bulletMaterial = std::make_unique<BulletModel::Material>(*this,
-            loadShaderModule("build/bullet.vert.spv"), loadShaderModule("build/bullet.frag.spv"));
+            loadShaderModule("bullet.vert.spv"), loadShaderModule("bullet.frag.spv"));
         
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/light.frag.spv"));
+            loadShaderModule("fullscreenLight.vert.spv"), loadShaderModule("light.frag.spv"));
 
         m_shadowMappedLightMaterial = std::make_unique<mge::ShadowMappedLightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"), loadShaderModule("build/shadowMapLight.frag.spv"));
+            loadShaderModule("fullscreenLight.vert.spv"), loadShaderModule("shadowMapLight.frag.spv"));
 
         m_asteroidMaterialInstance = std::make_unique<ObjectModel::Material::Instance>(m_objectMaterial->makeInstance());
         m_asteroidMaterialInstance->setup({ m_asteroidAlbedo, m_asteroidARM, m_asteroidNormal });

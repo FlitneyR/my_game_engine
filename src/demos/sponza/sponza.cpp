@@ -88,12 +88,12 @@ class Sponza : public mge::Engine {
         m_bloom.m_maxMipLevel = 5;
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
-            loadShaderModule("build/mvp.vert.spv"),
-            loadShaderModule("build/pbr.frag.spv"));
+            loadShaderModule("mvp.vert.spv"),
+            loadShaderModule("pbr.frag.spv"));
 
         m_alphaClippedModelMaterial = std::make_unique<Model::Material>(*this,
-            loadShaderModule("build/mvp.vert.spv"),
-            loadShaderModule("build/pbr.frag.spv"));
+            loadShaderModule("mvp.vert.spv"),
+            loadShaderModule("pbr.frag.spv"));
         m_alphaClippedModelMaterial->m_usesAlphaClipping = true;
 
         m_models.reserve(m_modelNames.size());
@@ -139,16 +139,16 @@ class Sponza : public mge::Engine {
         }, { 0, 1, 2, }));
 
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"),
-            loadShaderModule("build/light.frag.spv"));
+            loadShaderModule("fullscreenLight.vert.spv"),
+            loadShaderModule("light.frag.spv"));
         m_lightMaterialInstance = std::make_unique<mge::Light::Material::Instance>(m_lightMaterial->makeInstance());
         m_lightMaterialInstance->setup();
 
         m_light = std::make_unique<mge::Light>(*this, *m_lightMesh, *m_lightMaterial, *m_lightMaterialInstance);
 
         m_shadowMappedLightMaterial = std::make_unique<mge::ShadowMappedLightMaterial>(*this,
-            loadShaderModule("build/fullscreenLight.vert.spv"),
-            loadShaderModule("build/shadowMapLight.frag.spv"));
+            loadShaderModule("fullscreenLight.vert.spv"),
+            loadShaderModule("shadowMapLight.frag.spv"));
         
         m_shadowMappedLightMaterialInstance = std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance());
         m_shadowMappedLightMaterialInstance->setup(1, 1);
