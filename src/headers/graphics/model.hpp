@@ -7,6 +7,7 @@
 #include <material.hpp>
 #include <instance.hpp>
 #include <camera.hpp>
+#include <unordered_map>
 
 namespace mge {
 

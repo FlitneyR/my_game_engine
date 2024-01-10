@@ -131,6 +131,8 @@ public:
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffer();
+    void copyDataToImage(vk::Image dstImage, void* srcData, uint32_t width, uint32_t height, uint32_t pixelSize);
+    void setImageInitialLayout(vk::Image image, vk::ImageLayout newLayout, uint32_t mipLevels = 1, uint32_t arrayLayers = 1);
 
     uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 

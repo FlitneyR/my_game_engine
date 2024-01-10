@@ -250,6 +250,7 @@ void TAA::setupRenderPasses() {
                 .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setFormat(r_engine->m_emissiveFormat)
                 .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+                .setStoreOp(vk::AttachmentStoreOp::eStore)
                 ,
         };
 
@@ -262,14 +263,15 @@ void TAA::setupRenderPasses() {
                 .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
                 .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
                 ,
-            vk::SubpassDependency {}
-                .setSrcSubpass(VK_SUBPASS_EXTERNAL)
-                .setDstSubpass(0)
-                .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
-                .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
-                .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-                .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-                ,
+            /// I think this is unnecessary, the dependency should be in the next render pass
+            //vk::SubpassDependency {}
+            //    .setSrcSubpass(VK_SUBPASS_EXTERNAL)
+            //    .setDstSubpass(0)
+            //    .setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
+            //    .setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader)
+            //    .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+            //    .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            //    ,
         };
 
         m_taaRenderPass = r_engine->m_device.createRenderPass(vk::RenderPassCreateInfo {}
@@ -286,6 +288,7 @@ void TAA::setupRenderPasses() {
                 .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setFormat(r_engine->m_emissiveFormat)
                 .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+                .setStoreOp(vk::AttachmentStoreOp::eStore)
                 ,
         };
 
@@ -442,6 +445,7 @@ void TAA::setupPipelines() {
 
 void TAA::draw(vk::CommandBuffer cmd) {
     auto barrier = vk::ImageMemoryBarrier {}
+        .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
         .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
         .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
@@ -491,12 +495,14 @@ void TAA::draw(vk::CommandBuffer cmd) {
         {}, {}, {}, {
             vk::ImageMemoryBarrier { barrier }
                 .setImage(m_previousFrame)
+                .setOldLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
                 .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
                 .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
                 ,
             vk::ImageMemoryBarrier { barrier }
                 .setImage(m_taaTarget)
+                .setOldLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
                 .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
                 .setSrcAccessMask(vk::AccessFlagBits::eShaderRead)
                 .setDstAccessMask(vk::AccessFlagBits::eTransferRead)

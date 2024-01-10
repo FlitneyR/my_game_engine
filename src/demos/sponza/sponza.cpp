@@ -443,12 +443,12 @@ class Sponza : public mge::Engine {
         mge::Engine::rebuildSwapchain();
 
         m_hdrColourCorrection.cleanup();
-        m_taa.cleanup();
         m_bloom.cleanup();
+        m_taa.cleanup();
 
         m_hdrColourCorrection.setup();
-        m_taa.setup();
         m_bloom.setup();
+        m_taa.setup();
     }
 
     void end() override {

@@ -239,7 +239,7 @@ class Asteroids : public mge::Engine {
         ambientLightInstance->m_type = ambientLightInstance->e_ambient;
         ambientLightInstance->m_colour = glm::vec3 { 0.02f };
 
-        for (int i = 0; i < 6'000; i++)
+        for (int i = 0; i < 4'000; i++)
             auto entity = m_ecsManager.makeEntityFromTemplate("Asteroid");
 
         auto spaceshipEntity = m_ecsManager.makeEntityFromTemplate("Spaceship");
@@ -400,7 +400,7 @@ class Asteroids : public mge::Engine {
         auto collisionEvents = m_collisionSystem.getCollisionEvents();
 
         m_bulletSystem.handleCollisions(collisionEvents);
-        // m_spaceshipSystem.checkForAsteroidCollision(collisionEvents);
+        m_spaceshipSystem.checkForAsteroidCollision(collisionEvents);
         m_rigidbodySystem.resolveCollisions(collisionEvents);
 
         m_rigidbodySystem.update(deltaTime);

@@ -18,14 +18,21 @@ const std::vector<std::string> Engine::s_requiredDeviceLayers {
 };
 
 const std::vector<std::string> Engine::s_requiredInstanceExtensions {
-    "VK_KHR_portability_enumeration",
     "VK_KHR_surface",
+#ifdef __APPLE__
+    "VK_KHR_portability_enumeration",
     "VK_EXT_metal_surface",
+#endif
+#ifdef WIN32
+    "VK_KHR_win32_surface"
+#endif
 };
 
 const std::vector<std::string> Engine::s_requiredDeviceExtensions {
-    "VK_KHR_portability_subset",
     "VK_KHR_swapchain",
+#ifdef __APPLE__
+    "VK_KHR_portability_subset",
+#endif
 };
 
 void callEngineKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -98,7 +105,7 @@ void Engine::main() {
 void Engine::checkInstanceLayers() {
     auto supportedLayers = vk::enumerateInstanceLayerProperties();
     std::set<std::string> missingLayers(s_requiredInstanceLayers.begin(), s_requiredInstanceLayers.end());
-    for (const auto& layer : supportedLayers) missingLayers.erase(std::string(layer.layerName));
+    for (const auto& layer : supportedLayers) missingLayers.erase(std::string(layer.layerName.data()));
 
     if (!missingLayers.empty()) {
         std::ostringstream errorMsg; errorMsg << "Missing required layers: ";
@@ -110,7 +117,7 @@ void Engine::checkInstanceLayers() {
 void Engine::checkInstanceExtensions() {
     auto supportedExtensions = vk::enumerateInstanceExtensionProperties();
     std::set<std::string> missingExtensions(s_requiredInstanceExtensions.begin(), s_requiredInstanceExtensions.end());
-    for (const auto& extension : supportedExtensions) missingExtensions.erase(std::string(extension.extensionName));
+    for (const auto& extension : supportedExtensions) missingExtensions.erase(std::string(extension.extensionName.data()));
 
     if (!missingExtensions.empty()) {
         std::ostringstream errorMsg; errorMsg << "Missing required extensions: ";
@@ -122,7 +129,7 @@ void Engine::checkInstanceExtensions() {
 bool Engine::checkDeviceLayers(vk::PhysicalDevice device) {
     auto supportedLayers = device.enumerateDeviceLayerProperties();
     std::set<std::string> missingLayers(s_requiredDeviceLayers.begin(), s_requiredDeviceLayers.end());
-    for (const auto& layer : supportedLayers) missingLayers.erase(std::string(layer.layerName));
+    for (const auto& layer : supportedLayers) missingLayers.erase(std::string(layer.layerName.data()));
 
     return missingLayers.empty();
 }
@@ -130,7 +137,7 @@ bool Engine::checkDeviceLayers(vk::PhysicalDevice device) {
 bool Engine::checkDeviceExtensions(vk::PhysicalDevice device) {
     auto supportedExtensions = device.enumerateDeviceExtensionProperties();
     std::set<std::string> missingExtensions(s_requiredDeviceExtensions.begin(), s_requiredDeviceExtensions.end());
-    for (const auto& extension : supportedExtensions) missingExtensions.erase(std::string(extension.extensionName));
+    for (const auto& extension : supportedExtensions) missingExtensions.erase(std::string(extension.extensionName.data()));
 
     return missingExtensions.empty();
 }
@@ -161,7 +168,9 @@ void Engine::createInstance() {
         .setPEnabledLayerNames(requiredLayers)
         .setPEnabledExtensionNames(requiredExtensions)
         .setPApplicationInfo(&appInfo)
+#ifdef __APPLE__
         .setFlags(vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR)
+#endif
         ;
 
     m_instance = vk::createInstance(createInfo);
@@ -234,7 +243,7 @@ void Engine::createLogicalDevice() {
     for (const auto& extension : s_requiredDeviceExtensions)
         requiredExtensions.push_back(extension.c_str());
 
-    std::vector<const float> priorities { 1.0f };
+    std::vector<float> priorities { 1.0f };
 
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos {
         vk::DeviceQueueCreateInfo {}
@@ -468,39 +477,40 @@ void Engine::createRenderPass() {
         .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
         ;
 
-    auto renderTarget = vk::AttachmentDescription { templateAttachment }
+    auto renderTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eTransferDstOptimal)
         .setFormat(m_swapchainFormat.format)
         .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         ;
 
-    auto depthTarget = vk::AttachmentDescription { templateAttachment }
+    auto depthTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_depthImageFormat)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
         ;
 
-    auto albedoTarget = vk::AttachmentDescription { templateAttachment }
+    auto albedoTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_albedoFormat)
         ;
 
-    auto normalTarget = vk::AttachmentDescription { templateAttachment }
+    auto normalTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_normalFormat)
         ;
 
-    auto armTarget = vk::AttachmentDescription { templateAttachment }
+    auto armTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_armFormat)
         ;
 
-    auto emissiveTarget = vk::AttachmentDescription { templateAttachment }
+    auto emissiveTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_emissiveFormat)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         ;
 
-    auto velocityTarget = vk::AttachmentDescription { templateAttachment }
+    auto velocityTarget = vk::AttachmentDescription{ templateAttachment }
         .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(m_velocityFormat)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -896,6 +906,103 @@ void Engine::createCommandBuffer() {
     m_commandBuffers = m_device.allocateCommandBuffers(allocInfo);
 }
 
+void Engine::copyDataToImage(vk::Image dstImage, void* srcData, uint32_t width, uint32_t height, uint32_t pixelSize) {
+    uint32_t size = width * height * pixelSize;
+
+    vk::DeviceMemory stagingMemory = m_device.allocateMemory(vk::MemoryAllocateInfo {}
+        .setAllocationSize(size)
+            .setMemoryTypeIndex(findMemoryType(~0, vk::MemoryPropertyFlagBits::eDeviceLocal | vk::MemoryPropertyFlagBits::eHostCoherent))
+        );
+
+    vk::Buffer stagingBuffer = m_device.createBuffer(vk::BufferCreateInfo {}
+        .setUsage(vk::BufferUsageFlagBits::eTransferSrc)
+            .setSize(size)
+        );
+
+    m_device.bindBufferMemory(stagingBuffer, stagingMemory, {});
+
+    void* mappedMemory = m_device.mapMemory(stagingMemory, {}, size);
+    memcpy(mappedMemory, srcData, size);
+    m_device.unmapMemory(stagingMemory);
+
+    vk::CommandBuffer cmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo {}
+        .setCommandBufferCount(1)
+        .setCommandPool(m_commandPool)
+        .setLevel(vk::CommandBufferLevel::ePrimary)
+        )[0];
+
+    cmd.begin(vk::CommandBufferBeginInfo {});
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTopOfPipe,
+        vk::PipelineStageFlagBits::eTransfer,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {}
+            .setImage(dstImage)
+            .setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setSubresourceRange(vk::ImageSubresourceRange {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setLayerCount(1)
+                .setLevelCount(1)
+                )
+        );
+
+    cmd.copyBufferToImage(stagingBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, vk::BufferImageCopy {}
+        .setImageExtent(vk::Extent3D {}
+            .setDepth(1)
+            .setWidth(width)
+            .setHeight(height))
+            .setImageSubresource(vk::ImageSubresourceLayers {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setBaseArrayLayer(0)
+                .setLayerCount(1)
+                .setMipLevel(0))
+    );
+
+    cmd.end();
+
+    vk::Queue queue = m_device.getQueue(*m_queueFamilies.graphicsFamily, 0);
+    queue.submit(vk::SubmitInfo {} .setCommandBuffers(cmd));
+
+    m_device.waitIdle();
+    m_device.freeCommandBuffers(m_commandPool, cmd);
+    m_device.freeMemory(stagingMemory);
+    m_device.destroyBuffer(stagingBuffer);
+}
+
+void Engine::setImageInitialLayout(vk::Image image, vk::ImageLayout layout, uint32_t mipLevels, uint32_t arrayLayers) {
+    vk::CommandBuffer cmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo {}
+        .setCommandBufferCount(1)
+            .setCommandPool(m_commandPool)
+        )[0];
+
+    cmd.begin(vk::CommandBufferBeginInfo {});
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTopOfPipe,
+        vk::PipelineStageFlagBits::eBottomOfPipe,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {}
+            .setImage(image)
+            .setNewLayout(layout)
+            .setSubresourceRange(vk::ImageSubresourceRange {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setBaseArrayLayer(0)
+                .setBaseMipLevel(0)
+                .setLayerCount(arrayLayers)
+                .setLevelCount(mipLevels)
+            )
+        );
+
+    cmd.end();
+
+    m_device.getQueue(*m_queueFamilies.graphicsFamily, {}).submit(vk::SubmitInfo {}.setCommandBuffers(cmd));
+    m_device.waitIdle();
+
+    m_device.freeCommandBuffers(m_commandPool, cmd);
+}
+
 uint32_t Engine::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
     auto memProps = m_physicalDevice.getMemoryProperties();
 
@@ -1011,6 +1118,7 @@ void Engine::draw() {
         {}, {}, {},
         vk::ImageMemoryBarrier { imageBarrier }
             .setImage(m_emissiveImage)
+            .setOldLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
             .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
             .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
             .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
@@ -1027,7 +1135,7 @@ void Engine::draw() {
         vk::PipelineStageFlagBits::eBottomOfPipe,
         vk::DependencyFlagBits::eByRegion,
         {}, {},
-        imageBarrier
+        vk::ImageMemoryBarrier { imageBarrier }
             .setImage(m_swapchainImages[imageIndex])
             .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
             .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
@@ -1047,15 +1155,29 @@ void Engine::draw() {
         , m_commandBufferReadyFences[m_currentInFlightFrame]);
 
     vk::Queue presentQueue = m_device.getQueue(*m_queueFamilies.presentFamily, 0);
-    auto presentResult = presentQueue.presentKHR(vk::PresentInfoKHR {}
+
+    /** WARNING!
+     * On Windows, vk::Queue::presentKHR(const vk::PresentInfoKHR&) throws rather than returning a vk::Result
+     *
+     * However, vk::Queue::presentKHR(const vk::PresentInfoKHR*) does not, and instead just returns the vk::Result,
+     * that's why we're using that function instead.
+     *
+     * You can try replacing it with a try catch block if you want, but I think that just using this function instead
+     * is somewhat cleaner
+     */
+
+    auto presentInfo = vk::PresentInfoKHR{}
         .setImageIndices(imageIndex)
         .setSwapchains(m_swapchain)
         .setWaitSemaphores(m_renderFinishedSemaphores[m_currentInFlightFrame])
-        );
+        ;
+
+    vk::Result presentResult = presentQueue.presentKHR(&presentInfo);
 
     if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
         rebuildSwapchain();
-    } else vk::resultCheck(presentResult, "Failed to present render result");
+    }
+    else vk::resultCheck(presentResult, "Failed to present render result");
 
     m_currentInFlightFrame = (m_currentInFlightFrame + 1) % getMaxFramesInFlight();
     m_framecount++;

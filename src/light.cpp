@@ -290,7 +290,7 @@ void ShadowMappedLightMaterialInstance::setupDescriptorSet() {
             .setBufferInfo(vk::DescriptorBufferInfo {}
                 .setBuffer(m_shadowMapView.m_buffers[i])
                 .setOffset({})
-                .setRange(memreqs.size)),
+                .setRange(sizeof(Camera::BufferData))),
             {});
     }
 }

@@ -163,7 +163,7 @@ public:
         createDescriptorSetLayout();
         setupDescriptorPool();
         setupDescriptorSet();
-        transitionImageLayout();
+        // transitionImageLayout();
     }
 
     void setupImages();
@@ -283,9 +283,6 @@ void NTEXTURE_MATERIAL_INSTANCE::allocateMemories() {
         
         vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 
-        if (m_textures[i].m_data.size() > 0)
-            properties |= vk::MemoryPropertyFlagBits::eHostVisible;
-
         auto allocInfo = vk::MemoryAllocateInfo {}
             .setAllocationSize(memReqs.size)
             .setMemoryTypeIndex(r_engine->findMemoryType(memReqs.memoryTypeBits, properties))
@@ -300,17 +297,11 @@ NTEXTURE_TEMPLATE
 void NTEXTURE_MATERIAL_INSTANCE::fillImages() {
     for (int i = 0; i < N; i++)
     if (m_textures[i].m_data.size() > 0) {
-        void* mappedMemory = r_engine->m_device.mapMemory(m_bufferMemories[i], 0, m_textures[i].m_data.size());
-        memcpy(mappedMemory, m_textures[i].m_data.data(), m_textures[i].m_data.size());
+        uint32_t width = m_textures[i].m_width;
+        uint32_t height = m_textures[i].m_height;
+        uint32_t pixelSize = m_textures[i].m_data.size() / (width * height);
 
-        auto mappedMemoryRange = vk::MappedMemoryRange {}
-            .setMemory(m_bufferMemories[i])
-            .setOffset(0)
-            .setSize(m_textures[i].m_data.size())
-            ;
-
-        r_engine->m_device.flushMappedMemoryRanges(mappedMemoryRange);
-        r_engine->m_device.unmapMemory(m_bufferMemories[i]);
+        r_engine->copyDataToImage(m_images[i], m_textures[i].m_data.data(), width, height, pixelSize);
 
         if (m_textures[i].m_mipMapLevels > 1) generateMipMaps(i);
     }
@@ -343,7 +334,7 @@ void NTEXTURE_MATERIAL_INSTANCE::generateMipMaps(uint32_t index) {
         .setImage(m_images[index])
         .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
         .setDstAccessMask(vk::AccessFlagBits::eTransferRead)
-        .setOldLayout(vk::ImageLayout::eUndefined)
+        .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
         .setNewLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setSubresourceRange(vk::ImageSubresourceRange {}
             .setAspectMask(vk::ImageAspectFlagBits::eColor)
@@ -391,6 +382,43 @@ void NTEXTURE_MATERIAL_INSTANCE::generateMipMaps(uint32_t index) {
             vk::Filter::eLinear
             );
     }
+
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eAllGraphics,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {}
+            .setImage(m_images[index])
+            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            .setSubresourceRange(vk::ImageSubresourceRange {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setBaseArrayLayer(0)
+                .setLayerCount(1)
+                .setLevelCount(1)
+                .setBaseMipLevel(m_textures[index].m_mipMapLevels - 1))
+    );
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eAllGraphics,
+        {}, {}, {},
+        vk::ImageMemoryBarrier {}
+            .setImage(m_images[index])
+            .setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+            .setOldLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+            .setSubresourceRange(vk::ImageSubresourceRange {}
+                .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                .setBaseArrayLayer(0)
+                .setLayerCount(1)
+                .setBaseMipLevel(0)
+                .setLevelCount(m_textures[index].m_mipMapLevels - 1))
+    );
     
     cmd.end();
 

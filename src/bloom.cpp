@@ -15,10 +15,7 @@ void Bloom::makeImages() {
         .setMipLevels(m_mipLevels)
         .setQueueFamilyIndices(*r_engine->m_queueFamilies.graphicsFamily)
         .setUsage(vk::ImageUsageFlagBits::eColorAttachment
-                | vk::ImageUsageFlagBits::eInputAttachment
-                | vk::ImageUsageFlagBits::eSampled
-                | vk::ImageUsageFlagBits::eTransferSrc
-                | vk::ImageUsageFlagBits::eTransferDst)
+                | vk::ImageUsageFlagBits::eSampled)
         ;
 
     m_vBlurImage = r_engine->m_device.createImage(createInfo);
@@ -68,8 +65,8 @@ void Bloom::makeImageViews() {
 
 void Bloom::makeRenderPass() {
     auto attachmentDescription = vk::AttachmentDescription {}
-        .setInitialLayout(vk::ImageLayout::eGeneral)
-        .setFinalLayout(vk::ImageLayout::eGeneral)
+        .setInitialLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setFormat(r_engine->m_emissiveFormat)
         .setLoadOp(vk::AttachmentLoadOp::eLoad)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -78,7 +75,7 @@ void Bloom::makeRenderPass() {
 
     auto attachmentReference = vk::AttachmentReference {}
         .setAttachment(0)
-        .setLayout(vk::ImageLayout::eGeneral)
+        .setLayout(vk::ImageLayout::eColorAttachmentOptimal)
         ;
 
     std::vector<vk::SubpassDescription> subpasses {
@@ -292,7 +289,7 @@ void Bloom::makeDescriptorSets() {
     m_hBlurDescriptorSets = r_engine->m_device.allocateDescriptorSets(allocInfo);
     
     auto imageInfo = vk::DescriptorImageInfo {}
-        .setImageLayout(vk::ImageLayout::eGeneral)
+        .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
         .setSampler(m_sampler)
         ;
 
@@ -312,8 +309,8 @@ void Bloom::makeDescriptorSets() {
     for (int i = 0; i < m_mipLevels; i++) {
         r_engine->m_device.updateDescriptorSets(
             vk::WriteDescriptorSet { writeDescriptorSet }
-                    .setDstSet(m_vBlurDescriptorSets[i])
-                    .setImageInfo(vk::DescriptorImageInfo { imageInfo }.setImageView(m_vBlurImageViews[i]))
+                .setDstSet(m_vBlurDescriptorSets[i])
+                .setImageInfo(vk::DescriptorImageInfo { imageInfo }.setImageView(m_vBlurImageViews[i]))
             , {}
         );
 
@@ -330,40 +327,6 @@ void Bloom::filterHighlights(vk::CommandBuffer cmd) {
     PushConstants pc;
     pc.m_stage = e_filterHighlights;
     pc.m_threshold = m_threshold;
-    
-    auto generalImageBarrier = vk::ImageMemoryBarrier {}
-        .setNewLayout(vk::ImageLayout::eGeneral)
-        .setSubresourceRange(vk::ImageSubresourceRange {}
-            .setAspectMask(vk::ImageAspectFlagBits::eColor)
-            .setBaseMipLevel(0)
-            .setBaseArrayLayer(0)
-            .setLevelCount(1)
-            .setLayerCount(1)
-            )
-        ;
-
-    cmd.pipelineBarrier(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits::eFragmentShader,
-        {}, {}, {},
-        {
-            vk::ImageMemoryBarrier { generalImageBarrier }
-                .setImage(r_engine->m_emissiveImage)
-                ,
-            vk::ImageMemoryBarrier { generalImageBarrier }
-                .setImage(m_hBlurImage)
-                .setSubresourceRange(vk::ImageSubresourceRange { generalImageBarrier.subresourceRange }
-                    .setLevelCount(m_mipLevels)
-                    )
-                ,
-            vk::ImageMemoryBarrier { generalImageBarrier }
-                .setImage(m_vBlurImage)
-                .setSubresourceRange(vk::ImageSubresourceRange { generalImageBarrier.subresourceRange }
-                    .setLevelCount(m_mipLevels)
-                    )
-                ,
-        }
-    );
 
     cmd.beginRenderPass(vk::RenderPassBeginInfo {}
         .setClearValues(vk::ClearValue {}.setColor(vk::ClearColorValue { 0, 0, 0, 0 }))
@@ -423,22 +386,6 @@ void Bloom::combineMipChain(vk::CommandBuffer cmd) {
     pc.m_stage = e_combine;
     pc.m_combineFactor = m_combineFactor;
 
-    cmd.pipelineBarrier(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits::eFragmentShader,
-        {}, {}, {},
-        vk::ImageMemoryBarrier {}
-            .setImage(m_vBlurImage)
-            .setNewLayout(vk::ImageLayout::eGeneral)
-            .setSubresourceRange(vk::ImageSubresourceRange {}
-                .setAspectMask(vk::ImageAspectFlagBits::eColor)
-                .setBaseMipLevel(maxMipLevel() - 1)
-                .setBaseArrayLayer(0)
-                .setLevelCount(1)
-                .setLayerCount(1)
-                )
-    );
-
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_addPipeline);
 
     for (int i = maxMipLevel() - 2; i >= minMipLevel(); i--) {
@@ -476,29 +423,37 @@ void Bloom::overlayBloomOntoEmissive(vk::CommandBuffer cmd) {
     cmd.draw(3, 1, 0, 0);
 
     cmd.endRenderPass();
+}
+
+void Bloom::draw(vk::CommandBuffer cmd) {
+    auto imageBarrier = vk::ImageMemoryBarrier{}
+        .setOldLayout(vk::ImageLayout::eUndefined)
+        .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
+        .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+        .setSubresourceRange(vk::ImageSubresourceRange {}
+        .setAspectMask(vk::ImageAspectFlagBits::eColor)
+            .setBaseMipLevel(0)
+            .setBaseArrayLayer(0)
+            .setLevelCount(m_mipLevels)
+            .setLayerCount(1)
+        );
 
     cmd.pipelineBarrier(
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
         vk::PipelineStageFlagBits::eFragmentShader,
-        vk::DependencyFlagBits::eByRegion,
-        {}, {},
-        vk::ImageMemoryBarrier {}
-            .setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
-            .setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-            .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-            .setImage(r_engine->m_emissiveImage)
-            .setSubresourceRange(
-                vk::ImageSubresourceRange {}
-                    .setAspectMask(vk::ImageAspectFlagBits::eColor)
-                    .setBaseArrayLayer(0)
-                    .setBaseMipLevel(0)
-                    .setLayerCount(1)
-                    .setLevelCount(1)
-            )
-    );
-}
+        {}, {}, {},
+        {
+            vk::ImageMemoryBarrier { imageBarrier }
+                .setImage(m_vBlurImage)
+                .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+                ,
+            vk::ImageMemoryBarrier { imageBarrier }
+                .setImage(m_hBlurImage)
+                .setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+                ,
+        }
+        );
 
-void Bloom::draw(vk::CommandBuffer cmd) {
     filterHighlights(cmd);
     blurDownMipChain(cmd);
     combineMipChain(cmd);

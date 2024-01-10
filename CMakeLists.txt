@@ -3,12 +3,14 @@ project(MyGameEngine)
 
 set(CMAKE_CXX_STANDARD 20)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
+
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 
 include_directories(${Vulkan_INCLUDE_DIR} src/headers src/headers/ecs src/headers/graphics)
 
-link_libraries(${Vulkan_LIBRARY} glfw)
+link_libraries(${Vulkan_LIBRARY} ${GLFW3_LIBRARY})
 
 add_library(mge
     src/bloom.cpp

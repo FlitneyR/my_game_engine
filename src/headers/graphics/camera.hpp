@@ -47,12 +47,15 @@ struct Camera : public Uniform<CameraUniformData> {
     Camera(Engine& engine) {
         r_engine = &engine;
         m_forward = glm::vec3(0.f, 1.f, 0.f);
+        m_position = glm::vec3(0.f, 0.f, 0.f);
         m_up = glm::vec3(0.f, 0.f, 1.f);
 
         m_fov = glm::radians(70.f);
+        m_projectionType = e_perspective;
 
         m_near = 0.01f;
         m_far = 1000.f;
+        m_aspect = 1.0f;
     }
 
     glm::vec3 getJitter() {

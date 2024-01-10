@@ -20,7 +20,7 @@ public:
     std::vector<vk::DescriptorSet> m_descriptorSets;
     static vk::DescriptorSetLayout s_descriptorSetLayout;
 
-    UniformData m_uniformData;
+    UniformData m_uniformData {};
 
     virtual void updateUniformData(UniformData& uniform) = 0;
 
