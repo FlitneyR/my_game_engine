@@ -162,8 +162,8 @@ void Bloom::makePipelineLayout() {
 }
 
 void Bloom::makePipeline() {
-    m_vertexShader = r_engine->loadShaderModule("fullscreen.vert.spv");
-    m_fragmentShader = r_engine->loadShaderModule("bloom.frag.spv");
+    m_vertexShader = r_engine->loadShaderModule("shaders/fullscreen.vert.spv");
+    m_fragmentShader = r_engine->loadShaderModule("shaders/bloom.frag.spv");
 
     std::vector<vk::PipelineShaderStageCreateInfo> stages {
         vk::PipelineShaderStageCreateInfo {}

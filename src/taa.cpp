@@ -391,12 +391,12 @@ void TAA::setupPipelines() {
 
     std::vector<vk::PipelineShaderStageCreateInfo> stages {
         vk::PipelineShaderStageCreateInfo {}
-            .setModule(m_vertexShader = r_engine->loadShaderModule("fullscreen.vert.spv"))
+            .setModule(m_vertexShader = r_engine->loadShaderModule("shaders/fullscreen.vert.spv"))
             .setPName("main")
             .setStage(vk::ShaderStageFlagBits::eVertex)
             ,
         vk::PipelineShaderStageCreateInfo {}
-            .setModule(m_taaFragmentShader = r_engine->loadShaderModule("taa.frag.spv"))
+            .setModule(m_taaFragmentShader = r_engine->loadShaderModule("shaders/taa.frag.spv"))
             .setPName("main")
             .setStage(vk::ShaderStageFlagBits::eFragment)
             ,
@@ -422,7 +422,7 @@ void TAA::setupPipelines() {
     }
 
     {   // sharpen pipeline
-        stages[1].setModule(m_sharpenFragmentShader = r_engine->loadShaderModule("sharpen.frag.spv"));
+        stages[1].setModule(m_sharpenFragmentShader = r_engine->loadShaderModule("shaders/sharpen.frag.spv"));
 
         auto pipeline = r_engine->m_device.createGraphicsPipeline(nullptr, vk::GraphicsPipelineCreateInfo {}
             .setLayout(m_sharpenPipelineLayout)

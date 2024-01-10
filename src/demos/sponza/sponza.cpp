@@ -88,12 +88,12 @@ class Sponza : public mge::Engine {
         m_bloom.m_maxMipLevel = 5;
 
         m_modelMaterial = std::make_unique<Model::Material>(*this,
-            loadShaderModule("mvp.vert.spv"),
-            loadShaderModule("pbr.frag.spv"));
+            loadShaderModule("shaders/mvp.vert.spv"),
+            loadShaderModule("shaders/pbr.frag.spv"));
 
         m_alphaClippedModelMaterial = std::make_unique<Model::Material>(*this,
-            loadShaderModule("mvp.vert.spv"),
-            loadShaderModule("pbr.frag.spv"));
+            loadShaderModule("shaders/mvp.vert.spv"),
+            loadShaderModule("shaders/pbr.frag.spv"));
         m_alphaClippedModelMaterial->m_usesAlphaClipping = true;
 
         m_models.reserve(m_modelNames.size());
@@ -139,16 +139,16 @@ class Sponza : public mge::Engine {
         }, { 0, 1, 2, }));
 
         m_lightMaterial = std::make_unique<mge::LightMaterial>(*this,
-            loadShaderModule("fullscreenLight.vert.spv"),
-            loadShaderModule("light.frag.spv"));
+            loadShaderModule("shaders/fullscreenLight.vert.spv"),
+            loadShaderModule("shaders/light.frag.spv"));
         m_lightMaterialInstance = std::make_unique<mge::Light::Material::Instance>(m_lightMaterial->makeInstance());
         m_lightMaterialInstance->setup();
 
         m_light = std::make_unique<mge::Light>(*this, *m_lightMesh, *m_lightMaterial, *m_lightMaterialInstance);
 
         m_shadowMappedLightMaterial = std::make_unique<mge::ShadowMappedLightMaterial>(*this,
-            loadShaderModule("fullscreenLight.vert.spv"),
-            loadShaderModule("shadowMapLight.frag.spv"));
+            loadShaderModule("shaders/fullscreenLight.vert.spv"),
+            loadShaderModule("shaders/shadowMapLight.frag.spv"));
         
         m_shadowMappedLightMaterialInstance = std::make_unique<mge::ShadowMappedLightMaterialInstance>(m_shadowMappedLightMaterial->makeInstance());
         m_shadowMappedLightMaterialInstance->setup(1, 1);
@@ -298,9 +298,7 @@ class Sponza : public mge::Engine {
     void reCentreMouse() {
         glm::vec<2, int> windowSize;
         glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
-
-        glm::vec<2, double> center = glm::vec<2, double>(windowSize) / 2.0;
-        glfwSetCursorPos(m_window, center.x, center.y);
+        glfwSetCursorPos(m_window, windowSize.x / 2, windowSize.y / 2);
     }
 
     void updateCameraPosition(float deltaTime) {
@@ -320,7 +318,7 @@ class Sponza : public mge::Engine {
             moveBackward = glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS;
         }
 
-        static constexpr float MOUSE_SENSITIVITY = 0.005f;
+        static constexpr float MOUSE_SENSITIVITY = 0.0025f;
         glm::vec2 mouseDelta { 0.f, 0.f };
 
         if (glfwGetInputMode(m_window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN) {
@@ -329,10 +327,11 @@ class Sponza : public mge::Engine {
 
             glm::vec<2, int> windowSize;
             glfwGetWindowSize(m_window, &windowSize.x, &windowSize.y);
-            glm::vec<2, double> windowCentre = windowSize; windowCentre /= 2.0;
-            glfwSetCursorPos(m_window, windowCentre.x, windowCentre.y);
+            glm::vec<2, double> windowCentre = windowSize / 2;
 
             mouseDelta = mousePos - windowCentre;
+
+            reCentreMouse();
         }
 
         static float forwardInput, upInput, rightInput, panInput, pitchInput;

@@ -32,7 +32,7 @@ file(GLOB SHADERS src/shaders/*.vert src/shaders/*.frag)
 
 foreach(SHADER IN LISTS SHADERS)
     get_filename_component(SHADER_NAME ${SHADER} NAME)
-    set(COMPILED_SHADER ${SHADER_NAME}.spv)
+    set(COMPILED_SHADER shaders/${SHADER_NAME}.spv)
     add_custom_command(
         OUTPUT ${COMPILED_SHADER}
         COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${SHADER} -o ${COMPILED_SHADER}
@@ -47,3 +47,12 @@ add_dependencies(asteroids shaders)
 add_dependencies(sponza shaders)
 
 file(COPY assets DESTINATION .)
+
+install(TARGETS asteroids sponza DESTINATION bin)
+install(DIRECTORY assets DESTINATION bin)
+install(DIRECTORY ${CMAKE_BINARY_DIR}/shaders DESTINATION bin)
+
+set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/package")
+set(CPACK_GENERATOR "ZIP")
+
+include(CPack)

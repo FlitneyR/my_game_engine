@@ -138,8 +138,8 @@ void HDRColourCorrection::setupPipeline() {
         .setRasterizationSamples(vk::SampleCountFlagBits::e1)
         ;
 
-    m_vertexStage = r_engine->loadShaderModule("fullscreen.vert.spv");
-    m_fragmentStage = r_engine->loadShaderModule("hdrColourCorrection.frag.spv");
+    m_vertexStage = r_engine->loadShaderModule("shaders/fullscreen.vert.spv");
+    m_fragmentStage = r_engine->loadShaderModule("shaders/hdrColourCorrection.frag.spv");
     
     std::vector<vk::PipelineShaderStageCreateInfo> stages {
         vk::PipelineShaderStageCreateInfo {}
